@@ -15,6 +15,7 @@ Private mVX0 As Double, mVX1 As Double, mVY0 As Double, mVY1 As Double
 Private mFL As Double, mFT As Double, mFW As Double, mFH As Double
 Private mIL As Double, mIT As Double, mIW As Double, mIH As Double
 Private mDot As Double, mBoxW As Double, mBoxCol As Long
+Private mNames() As String, mCnt As Long      ' names of the overlay shapes created for the current image
 
 ' ---------- text helpers (Traditional Chinese via ChrW) ----------
 Private Function T_OOS() As String
@@ -407,7 +408,6 @@ Private Function InView(ByVal x As Double, ByVal y As Double) As Boolean
     InView = (x >= mVX0 And x <= mVX1 And y >= mVY0 And y <= mVY1)
 End Function
 
-Private mNames() As String, mCnt As Long
 Private Sub Track(ByVal s As Shape)
     If s Is Nothing Then Exit Sub
     mCnt = mCnt + 1
