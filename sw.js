@@ -1,12 +1,13 @@
 /* CIE 色度圖工具 — Service Worker
  * 讓安裝後的應用程式可以離線使用：頁面採「網路優先」（有新版會自動更新），
  * 函式庫與字型採「快取優先」。更新網頁內容時把 VERSION 加 1。 */
-const VERSION = 'cie-tool-v1';
+const VERSION = 'cie-tool-v2';
 const CORE = ['./', './index.html', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/favicon-64.png', './icons/apple-touch-icon.png'];
 const LIBS = [
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'
 ];
 
 self.addEventListener('install', e => {

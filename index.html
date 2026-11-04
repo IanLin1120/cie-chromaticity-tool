@@ -420,6 +420,12 @@ html[data-style="glass"] .toast{background:var(--surface-3);}
             <div class="toggles" data-toggles></div>
           </div>
           <div class="plot-wrap"><canvas id="cv3"></canvas><div class="readout"></div></div>
+          <div class="toggles" style="margin-top:12px;padding:9px 11px;border:1px solid var(--border-soft);border-radius:12px;background:var(--surface-2);">
+            <span class="lbl">量測點標示</span>
+            <label><input type="checkbox" id="showPts">顯示所有量測點</label>
+            <label><input type="checkbox" id="showAvg">顯示平均點</label>
+            <span class="hint" style="font-weight:500;">（也會套用到輸出的圖片與 Excel）</span>
+          </div>
           <div class="divider" style="margin:16px 0;"></div>
           <div class="field"><label>顯示範圍</label>
             <div class="segbar" id="viewMode3">
@@ -455,6 +461,8 @@ html[data-style="glass"] .toast{background:var(--surface-3);}
             <div class="card-sub">內容：色度圖（規格框＋量測點，依上方的顯示範圍與圖面語言）圖片、規格上下限、統計（平均／最大／最小／標準差）、全部量測數值與判定，超規的格子標紅。</div>
           </div></div>
           <div class="field"><label for="xlName">檔名</label><input class="input" id="xlName" type="text"></div>
+          <label class="toggles" style="margin-top:12px;cursor:pointer;"><input type="checkbox" id="xlMacro">加入「重新計算」巨集按鈕（輸出 .xlsm）</label>
+          <div class="hint" id="xlMacroHint" style="margin-top:6px;">按鈕位於 D10:E11，會隨欄寬列高自動調整大小。修改或刪除量測數值後按一下，就會重新編號、重算統計與判定，並更新圖上的量測點。<br>從網路下載的 .xlsm 第一次開啟前：在檔案上按右鍵 → 內容 → 勾選「解除封鎖」→ 確定，開啟後再按「啟用內容」。</div>
           <button class="btn btn-primary btn-block" id="btnXl" style="margin-top:12px;" disabled><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>輸出 Excel</button>
           <div id="xlAlert"></div>
         </div>
@@ -893,7 +901,7 @@ const S = {
   view:{ mode:'full', pad:2.5, x0:0.25, x1:0.40, y0:0.25, y1:0.40 },
   view3:{ mode:'zoom', pad:2.5, x0:0.25, x1:0.40, y0:0.25, y1:0.40 },
   disp:{ wl:true, kelly:true, names:true, planck:true, illum:true, srgb:false, legend:true, style:'kelly', lang:'zh' },
-  imgFmt:'png', imgFmt3:'png'
+  imgFmt:'png', imgFmt3:'png', mark:{ pts:true, avg:true }, xlMacro:true
 };
 const D = { grid:null, source:'', wb:null, sheet:'', hdr:-1, start:0, cx:-1, cy:-1, cid:-1, rows:[], filter:'all' };
 try{ const s = JSON.parse(localStorage.getItem('cieTool.v1') || 'null'); if (s) for (const k of Object.keys(S)) if (s[k] !== undefined) S[k] = (typeof S[k] === 'object' && S[k]) ? { ...S[k], ...s[k] } : s[k]; }catch(e){}
@@ -983,7 +991,8 @@ function optsBox(){ return { ...baseOpts(), titleKey:'t_box', rect:rectOpt() }; 
 function optsData(){
   const st = stats();
   return { ...baseOpts(), titleKey:'t_data', rect:rectOpt(),
-    pts: D.rows.map(r => ({ x:r.x, y:r.y, bad:r.bx || r.by })), avg: st ? { x:st.ax, y:st.ay, bad:st.abx || st.aby } : null };
+    pts: S.mark.pts ? D.rows.map(r => ({ x:r.x, y:r.y, bad:r.bx || r.by })) : null,
+    avg: S.mark.avg && st ? { x:st.ax, y:st.ay, bad:st.abx || st.aby } : null };
 }
 function drawTo(canvas, view, opts){
   const wrap = canvas.parentElement, cssW = wrap.clientWidth; if (!cssW) return;
@@ -1350,6 +1359,54 @@ async function ensureExcelJS(){
   catch(e){ await loadScript('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js'); }
   if (!window.ExcelJS) throw new Error('Excel 元件載入失敗（需要網路連線）');
 }
+async function ensureJSZip(){
+  if (window.JSZip) return;
+  try{ await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'); }
+  catch(e){ await loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'); }
+  if (!window.JSZip) throw new Error('壓縮元件載入失敗（需要網路連線）');
+}
+/* 巨集專案（vbaProject.bin）：以 MS-OVBA 規格產生、只含原始碼，Excel 開啟時會自行編譯。
+ * 原始碼：Module1.RecalcAll —— 重新編號、重寫判定公式與統計、重新標紅、重畫圖上的量測點。 */
+const VBA_PROJECT_B64 = "0M8R4KGxGuEAAAAAAAAAAAAAAAAAAAAAPgADAP7/CQAGAAAAAAAAAAAAAAABAAAAEAAAAAAAAAAAEAAABQAAAAEAAAD+////AAAAAAAAAAD////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////9////AgAAAAMAAAAEAAAA/v////7///8HAAAACAAAAAkAAAAKAAAACwAAAAwAAAANAAAADgAAAA8AAAD+////EQAAABIAAAD+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////8xh//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABCLGAAQAEAAAAAQAwqgICkAkAIBQGSAMAqIAAAOQEBAAKABwAVkJBUHJvamWIY3QFADQAAEACFGoGAgo9AgoHAnIBAAhFBhIJBsIAAAwCCjxFAgoPArYFABMCB/8E/xkCHVRoaXNXAG9ya2Jvb2tHBAAYAREAaABpAABzAFcAbwByAKhrAGIAB28ABxoOL6oyGi8cAnVIAgUxBp2qHoYELIRDIoIGK4ICAhmCblNoZWV0MapHgjdTgC5lgAB0gCFaGogOMo4OvDcyjTcyVYk3Mo03Mr03M80bM1XJGzPNGzP0GwdAAU2gb2R1bGUAVA4BA8EAZ2QAdQBsgBWBVK0ICDIQCGUdIUgdEEIBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGrsABBdHRyaWJ1dABlIFZCX05hbQBlID0gIlRoaQBzV29ya2JvbxBrIg0KCoxCYXMBAowwezAwMDIwUDgxOS0AEDADCEMjBRIDADQ2fQ18R2wQb2JhbAHQU3BhgmMBkkZhbHNlDCUAQ3JlYXRhYmwBFR9QcmVkZWNsEmEABklkACNUcnWBDSJFeHBvc2UUHABUZW1wbGF0ZWBEZXJpdgISkkJ1wHN0b21pegREgyMAAAAAAAAAAAAAAAAAAAAAAAGksABBdHRyaWJ1dABlIFZCX05hbQBlID0gIlNoZUBldDEiDQoK6EIEYXMCdDB7MDAwwDIwODIwLQAgBAhGQwUSAwA0Nn0NfEcgbG9iYWwBxFNwBGFjAZJGYWxzZQEMJUNyZWF0YWICbBUfUHJlZGVjJGxhAAZJZAAjVHICdQ0iRXhwb3NlARQcVGVtcGxhdMBlRGVyaXYCJJJCgHVzdG9taXoERAGDIwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGksABBdHRyaWJ1dABlIFZCX05hbQBlID0gIlNoZUBldDIiDQoK6EIEYXMCdDB7MDAwwDIwODIwLQAgBAhGQwUSAwA0Nn0NfEcgbG9iYWwBxFNwBGFjAZJGYWxzZQEMJUNyZWF0YWICbBUfUHJlZGVjJGxhAAZJZAAjVHICdQ0iRXhwb3NlARQcVGVtcGxhdMBlRGVyaXYCJJJCgHVzdG9taXoERAGDIwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGksABBdHRyaWJ1dABlIFZCX05hbQBlID0gIlNoZUBldDMiDQoK6EIEYXMCdDB7MDAwwDIwODIwLQAgBAhGQwUSAwA0Nn0NfEcgbG9iYWwBxFNwBGFjAZJGYWxzZQEMJUNyZWF0YWICbBUfUHJlZGVjJGxhAAZJZAAjVHICdQ0iRXhwb3NlARQcVGVtcGxhdMBlRGVyaXYCJJJCgHVzdG9taXoERAGDIwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAElEPSJ7NTdCN0Q4MkQtQjA0QS00QjRFLTkwNDktMzg0RUE4NDdGMUYyfSINCkRvY3VtZW50PVRoaXNXb3JrYm9vay8mSDAwMDAwMDAwDQpEb2N1bWVudD1TaGVldDEvJkgwMDAwMDAwMA0KRG9jdW1lbnQ9U2hlZXQyLyZIMDAwMDAwMDANCkRvY3VtZW50PVNoZWV0My8mSDAwMDAwMDAwDQpNb2R1bGU9TW9kdWxlMQ0KTmFtZT0iVkJBUHJvamVjdCINCkhlbHBDb250ZXh0SUQ9IjAiDQpWZXJzaW9uQ29tcGF0aWJsZTMyPSIzOTMyMjIwMDAiDQpDTUc9IkY4RkExRUU0MjJFNDIyRTQyMkU0MjIiDQpEUEI9Ijc3NzU5MTREOEMxQ0YxMURGMTFERjEiDQpHQz0iMjgyQUNFMTFDRjExQ0ZFRSINCg0KW0hvc3QgRXh0ZW5kZXIgSW5mb10NCiZIMDAwMDAwMDE9ezM4MzJENjQwLUNGOTAtMTFDRi04RTQzLTAwQTBDOTExMDA1QX07VkJFOyZIMDAwMDAwMDANCg0KW1dvcmtzcGFjZV0NClRoaXNXb3JrYm9vaz0wLCAwLCAwLCAwLCBDDQpTaGVldDE9MCwgMCwgMCwgMCwgQw0KU2hlZXQyPTAsIDAsIDAsIDAsIEMNClNoZWV0Mz0wLCAwLCAw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";
+async function toXlsm(buf){
+  await ensureJSZip();
+  const zip = await JSZip.loadAsync(buf);
+  const rd = p => zip.file(p).async('string');
+  // 1) content types
+  let ct = await rd('[Content_Types].xml');
+  ct = ct.replace('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml', 'application/vnd.ms-excel.sheet.macroEnabled.main+xml');
+  if (!ct.includes('Extension="bin"')) ct = ct.replace('<Default Extension="png"', '<Default Extension="bin" ContentType="application/vnd.ms-office.vbaProject"/><Default Extension="png"');
+  zip.file('[Content_Types].xml', ct);
+  // 2) workbook relationship + code names
+  let rels = await rd('xl/_rels/workbook.xml.rels');
+  rels = rels.replace('</Relationships>', '<Relationship Id="rIdVba1" Type="http://schemas.microsoft.com/office/2006/relationships/vbaProject" Target="vbaProject.bin"/></Relationships>');
+  zip.file('xl/_rels/workbook.xml.rels', rels);
+  let wbx = await rd('xl/workbook.xml');
+  wbx = /<workbookPr\b/.test(wbx) ? wbx.replace(/<workbookPr\b/, '<workbookPr codeName="ThisWorkbook"') : wbx.replace('<sheets>', '<workbookPr codeName="ThisWorkbook"/><sheets>');
+  zip.file('xl/workbook.xml', wbx);
+  for (let i = 1; zip.file(`xl/worksheets/sheet${i}.xml`); i++){
+    let sx = await rd(`xl/worksheets/sheet${i}.xml`);
+    if (/<sheetPr\b/.test(sx)) sx = sx.replace(/<sheetPr\b/, `<sheetPr codeName="Sheet${i}"`);
+    else sx = sx.replace(/(<worksheet\b[^>]*>)/, `$1<sheetPr codeName="Sheet${i}"/>`);
+    zip.file(`xl/worksheets/sheet${i}.xml`, sx);
+  }
+  // 3) drawing: name the pictures, hide the base image, add the button (D10:E11, moves and sizes with cells)
+  let dr = await rd('xl/drawings/drawing1.xml');
+  let k = 0;
+  dr = dr.replace(/<xdr:cNvPr id="(\d+)" name="[^"]*"/g, (m, id) => (++k === 1) ? `<xdr:cNvPr id="${id}" name="CIE_Chart"` : (k === 2 ? `<xdr:cNvPr id="${id}" name="CIE_Base" hidden="1"` : m));
+  const btn = `<xdr:twoCellAnchor editAs="twoCell"><xdr:from><xdr:col>3</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>9</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>5</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>11</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>`
+    + `<xdr:sp macro="[0]!RecalcAll" textlink=""><xdr:nvSpPr><xdr:cNvPr id="900" name="btnRecalc" descr="重新計算"/><xdr:cNvSpPr/></xdr:nvSpPr>`
+    + `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></a:xfrm><a:prstGeom prst="roundRect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="A1512C"/></a:solidFill><a:ln w="12700"><a:solidFill><a:srgbClr val="6E3418"/></a:solidFill></a:ln></xdr:spPr>`
+    + `<xdr:txBody><a:bodyPr vertOverflow="clip" horzOverflow="clip" wrap="square" lIns="36000" tIns="0" rIns="36000" bIns="0" rtlCol="0" anchor="ctr"><a:normAutofit/></a:bodyPr><a:lstStyle/>`
+    + `<a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="zh-TW" altLang="en-US" sz="1200" b="1"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:latin typeface="Microsoft JhengHei"/><a:ea typeface="Microsoft JhengHei"/></a:rPr><a:t>↻ 重新計算</a:t></a:r></a:p>`
+    + `<a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="zh-TW" altLang="en-US" sz="800"><a:solidFill><a:srgbClr val="FBE9DD"/></a:solidFill><a:latin typeface="Microsoft JhengHei"/><a:ea typeface="Microsoft JhengHei"/></a:rPr><a:t>編號・統計・判定・圖上的點</a:t></a:r></a:p>`
+    + `</xdr:txBody></xdr:sp><xdr:clientData fPrintsWithSheet="0"/></xdr:twoCellAnchor>`;
+  dr = dr.replace('</xdr:wsDr>', btn + '</xdr:wsDr>');
+  zip.file('xl/drawings/drawing1.xml', dr);
+  // 4) the VBA project itself
+  zip.file('xl/vbaProject.bin', Uint8Array.from(atob(VBA_PROJECT_B64), c => c.charCodeAt(0)));
+  return zip.generateAsync({ type:'uint8array', compression:'DEFLATE' });
+}
 async function buildExcel(){
   await ensureExcelJS();
   const st = stats(), ok = specValid(), sp = S.spec, n = D.rows.length;
@@ -1422,23 +1479,41 @@ async function buildExcel(){
   // 色度圖（規格框 + 量測點）
   const view = viewFor(S.view3, true), lay = layoutFor(1600, view), cv = document.createElement('canvas');
   cv.width = lay.W; cv.height = lay.H;
-  renderDiagram(new CanvasPainter(cv.getContext('2d')), lay, optsData());
-  const imgId = wb.addImage({ base64:cv.toDataURL('image/png'), extension:'png' });
+  const macro = !!S.xlMacro;
+  const od = optsData();
+  renderDiagram(new CanvasPainter(cv.getContext('2d')), lay, od);
+  const iw = 640, ih = Math.round(iw*lay.H/lay.W), anchor = { tl:{ col:8, row:3.3 }, ext:{ width:iw, height:ih } };
   ws.getCell('I3').value = '色度圖（規格框＋量測點）'; ws.getCell('I3').font = { bold:true, size:12 };
-  const iw = 640; ws.addImage(imgId, { tl:{ col:8, row:3.3 }, ext:{ width:iw, height:Math.round(iw*lay.H/lay.W) } });
-  // 另附全圖
-  if (S.view3.mode !== 'full'){
+  ws.addImage(wb.addImage({ base64:cv.toDataURL('image/png'), extension:'png' }), anchor);
+  if (macro){
+    // 不含量測點的底圖：巨集重新計算時改用它，再把量測點畫成圖形疊上去
+    const cvb = document.createElement('canvas'); cvb.width = lay.W; cvb.height = lay.H;
+    renderDiagram(new CanvasPainter(cvb.getContext('2d')), lay, { ...od, pts:null, avg:null });
+    ws.addImage(wb.addImage({ base64:cvb.toDataURL('image/png'), extension:'png' }), anchor);
+  }
+  // 另附全圖（巨集版固定有這個工作表）
+  if (macro || S.view3.mode !== 'full'){
     const lay2 = layoutFor(1600, FULL_VIEW), cv2 = document.createElement('canvas'); cv2.width = lay2.W; cv2.height = lay2.H;
-    renderDiagram(new CanvasPainter(cv2.getContext('2d')), lay2, optsData());
+    renderDiagram(new CanvasPainter(cv2.getContext('2d')), lay2, od);
     const ws2 = wb.addWorksheet('色度圖全圖', { views:[{ showGridLines:false }] });
     ws2.getCell('A1').value = 'CIE 1931 xy 色度圖（全圖）'; ws2.getCell('A1').font = { bold:true, size:13 };
     ws2.addImage(wb.addImage({ base64:cv2.toDataURL('image/png'), extension:'png' }), { tl:{ col:0, row:1.4 }, ext:{ width:760, height:Math.round(760*lay2.H/lay2.W) } });
   }
+  if (macro){
+    // 巨集用的參數（隱藏工作表）：圖的顯示範圍、繪圖區在圖片中的位置比例、點的大小、是否畫點／平均點
+    const ps = wb.addWorksheet('_cie_params', { state:'hidden' });
+    const P = [['vx0', view.x0], ['vx1', view.x1], ['vy0', view.y0], ['vy1', view.y1],
+      ['fl', lay.L/lay.W], ['ft', lay.T/lay.H], ['fw', lay.pw/lay.W], ['fh', lay.ph/lay.H],
+      ['dot', 0.0095], ['pts', S.mark.pts ? 1 : 0], ['avg', S.mark.avg ? 1 : 0]];
+    P.forEach(([k, v], i) => { ps.getCell(i + 1, 1).value = k; ps.getCell(i + 1, 2).value = v; });
+    ps.getCell(1, 4).value = '此工作表由 CIE 色度圖工具產生，供「重新計算」巨集使用，請勿修改。';
+  }
   const buf = await wb.xlsx.writeBuffer();
+  if (macro) return new Blob([await toXlsm(buf)], { type:'application/vnd.ms-excel.sheet.macroEnabled.12' });
   return new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 $('btnXl').addEventListener('click', () => withBusy($('btnXl'), async () => {
-  const name = ($('xlName').value.trim() || `CIE色度量測_${today()}`).replace(/[\\/:*?"<>|]/g, '') + '.xlsx';
+  const name = ($('xlName').value.trim() || `CIE色度量測_${today()}`).replace(/[\\/:*?"<>|]/g, '') + (S.xlMacro ? '.xlsm' : '.xlsx');
   download(await buildExcel(), name);
   toast('success', '已開始下載', name);
 }));
@@ -1450,6 +1525,11 @@ $('ptX').value = S.pt.x.toFixed(4); $('ptY').value = S.pt.y.toFixed(4);
 for (const [id, k] of Object.entries(SPEC_IDS)) $(id).value = isFinite(S.spec[k]) ? S.spec[k].toFixed(4) : '';
 $('rcColor').value = S.rect.color; $('rcColorTxt').textContent = S.rect.color.toUpperCase(); $('rcLw').value = String(S.rect.lw);
 VIEWCTL.forEach(syncView); syncToggles(); imgHint();
+$('showPts').checked = S.mark.pts; $('showAvg').checked = S.mark.avg; $('xlMacro').checked = S.xlMacro;
+$('xlMacroHint').style.display = S.xlMacro ? '' : 'none';
+$('showPts').addEventListener('change', () => { S.mark.pts = $('showPts').checked; save(); schedule(); });
+$('showAvg').addEventListener('change', () => { S.mark.avg = $('showAvg').checked; save(); schedule(); });
+$('xlMacro').addEventListener('change', () => { S.xlMacro = $('xlMacro').checked; $('xlMacroHint').style.display = S.xlMacro ? '' : 'none'; save(); });
 updatePt(); readSpec(); renderData();
 const fontsReady = document.fonts ? Promise.all([document.fonts.load('400 16px "Noto Sans TC"'), document.fonts.load('700 16px "JetBrains Mono"')]).catch(() => {}) : Promise.resolve();
 fontsReady.then(() => { fillCache.clear(); schedule(); });
