@@ -1,0 +1,17 @@
+{
+  "id": "./",
+  "name": "CIE 色度圖工具",
+  "short_name": "CIE 色度圖",
+  "description": "CIE 1931 xy 色度圖：色點查詢、規格框繪製、量測數據判定與 Excel 輸出",
+  "lang": "zh-Hant",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ece3d3",
+  "theme_color": "#a1512c",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

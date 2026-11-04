@@ -1,0 +1,1471 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" data-theme="light" data-style="solid">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CIE 色度圖工具</title>
+<meta name="description" content="CIE 1931 xy 色度圖：色點查詢、規格框繪製、量測數據判定與 Excel 輸出">
+<meta name="theme-color" content="#a1512c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --font:'Noto Sans TC',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --bg:#ece3d3; --bg-grad-a:#f2ead9; --bg-grad-b:#e2d5bd;
+  --surface:#fbf7ef; --surface-2:#f2e9d9; --surface-3:#e7dac1;
+  --border:#d6c6a4; --border-soft:#e4d6b9;
+  --text:#2d2517; --text-dim:#6c5d47; --text-faint:#9c8c71;
+  --accent:#a1512c; --accent-2:#c1794f; --accent-soft:#f0ddc7; --accent-soft-2:#e6c6a1;
+  --good:#5c7a3d; --good-soft:#e4ead2; --warn:#ad7a1e; --warn-soft:#f2e2bc; --bad:#d0342c; --bad-soft:#f6d9d3;
+  --shadow-sm:0 1px 2px rgba(66,50,26,.10),0 1px 1px rgba(66,50,26,.06);
+  --shadow-md:0 8px 24px rgba(66,48,24,.14),0 2px 6px rgba(66,48,24,.08);
+  --shadow-lg:0 20px 50px rgba(48,34,16,.24),0 6px 16px rgba(48,34,16,.14);
+  --radius-md:14px; --radius-lg:20px;
+  --glass-blur:none; --glass-edge:0 0 0 transparent;
+}
+html[data-theme="dark"]{
+  --bg:#0e1420; --bg-grad-a:#10182a; --bg-grad-b:#0b111d;
+  --surface:#141c2c; --surface-2:#182337; --surface-3:#1c2841;
+  --border:#263252; --border-soft:#202c47;
+  --text:#e7ecf7; --text-dim:#a2adc4; --text-faint:#6b7794;
+  --accent:#6f97ee; --accent-2:#90aef2; --accent-soft:#1c2947; --accent-soft-2:#223257;
+  --good:#35c98a; --good-soft:#123328; --warn:#e2a53f; --warn-soft:#3a2c11; --bad:#ff6b60; --bad-soft:#3a1c1a;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.3); --shadow-md:0 8px 24px rgba(0,0,0,.45); --shadow-lg:0 20px 50px rgba(0,0,0,.55);
+}
+html[data-style="glass"]{
+  --bg:#e6d9c0;
+  --surface:rgba(251,246,236,.46); --surface-2:rgba(243,232,213,.38); --surface-3:rgba(232,217,190,.52);
+  --border:rgba(255,248,232,.62); --border-soft:rgba(214,196,160,.5);
+  --accent-soft:rgba(161,81,44,.14); --accent-soft-2:rgba(161,81,44,.26);
+  --glass-blur:blur(24px) saturate(160%);
+  --glass-edge:inset 0 1px 0 rgba(255,250,238,.7);
+}
+html[data-style="glass"][data-theme="dark"]{
+  --bg:#070b18;
+  --surface:rgba(255,255,255,.075); --surface-2:rgba(255,255,255,.055); --surface-3:rgba(255,255,255,.12);
+  --border:rgba(255,255,255,.2); --border-soft:rgba(255,255,255,.12);
+  --accent:#6ea0ff; --accent-2:#b08cff; --accent-soft:rgba(110,160,255,.18); --accent-soft-2:rgba(110,160,255,.3);
+  --glass-blur:blur(26px) saturate(185%); --glass-edge:inset 0 1px 0 rgba(255,255,255,.2);
+}
+*{box-sizing:border-box;}
+[hidden]{display:none !important;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:var(--font);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;
+  background:radial-gradient(1200px 600px at 10% -10%,var(--bg-grad-a),transparent 60%),radial-gradient(1000px 700px at 110% 10%,var(--bg-grad-b),transparent 55%),var(--bg);
+}
+html[data-style="glass"] body{background:radial-gradient(900px 620px at 8% 4%,#e3c79c 0%,transparent 62%),radial-gradient(820px 600px at 96% 0%,#d9a983 0%,transparent 60%),radial-gradient(900px 700px at 82% 96%,#c5c79a 0%,transparent 60%),var(--bg);background-attachment:fixed;}
+html[data-style="glass"][data-theme="dark"] body{background:radial-gradient(900px 620px at 8% 4%,#1f3f9c 0%,transparent 62%),radial-gradient(820px 600px at 96% 0%,#7a2a78 0%,transparent 60%),radial-gradient(900px 700px at 82% 96%,#0f6a63 0%,transparent 60%),var(--bg);background-attachment:fixed;}
+button,input,select,textarea{font-family:inherit;}
+.app-shell{max-width:1360px;margin:0 auto;padding:22px 22px 60px;}
+.card,.tabbar,.theme-toggle,.segbar,.toast,.dropzone,.stat{-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap;}
+.brand{display:flex;align-items:center;gap:14px;}
+.brand-mark{width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:var(--shadow-md);}
+.brand-mark svg{width:26px;height:26px;}
+.brand h1{font-size:19px;margin:0;font-weight:800;}
+.brand p{margin:2px 0 0;font-size:12.5px;color:var(--text-dim);}
+.topbar-actions{display:flex;gap:10px;flex-wrap:wrap;}
+.theme-toggle{display:flex;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:4px;box-shadow:var(--shadow-sm);}
+.theme-toggle button{border:none;background:transparent;color:var(--text-dim);height:34px;min-width:34px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:700;padding:0 10px;}
+.theme-toggle button svg{width:17px;height:17px;}
+.theme-toggle button.active{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;}
+
+.tabbar{display:flex;gap:6px;background:var(--surface);border:1px solid var(--border);padding:6px;border-radius:16px;box-shadow:var(--shadow-sm);width:fit-content;margin-bottom:20px;flex-wrap:wrap;}
+.tab-btn{border:none;background:transparent;color:var(--text-dim);padding:10px 20px;border-radius:11px;font-weight:700;font-size:14.5px;cursor:pointer;display:flex;align-items:center;gap:8px;}
+.tab-btn svg{width:17px;height:17px;}
+.tab-btn.active{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;box-shadow:var(--shadow-md);}
+.tab-btn:not(.active):hover{background:var(--surface-3);color:var(--text);}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;animation:fadein .25s ease;}
+@keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm),var(--glass-edge);padding:20px;margin-bottom:20px;}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+.card-title{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:800;}
+.badge-step{width:26px;height:26px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;}
+.card-sub{color:var(--text-dim);font-size:12.6px;margin-top:3px;line-height:1.6;}
+.layout{display:grid;grid-template-columns:minmax(320px,400px) minmax(0,1fr);gap:20px;align-items:start;}
+.layout-2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start;}
+@media (max-width:1000px){.layout,.layout-2{grid-template-columns:1fr;}}
+
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.field{display:flex;flex-direction:column;gap:6px;}
+.field label{font-size:12.3px;font-weight:700;color:var(--text-dim);}
+.hint{font-size:11.4px;color:var(--text-faint);line-height:1.55;}
+.input,.select,textarea.input{border:1px solid var(--border);background:var(--surface-2);color:var(--text);border-radius:9px;padding:9px 11px;font-size:14px;width:100%;}
+.input.mono{font-family:var(--mono);font-weight:600;}
+.input.big{font-size:20px;padding:10px 12px;}
+.input:focus,.select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+.input.err{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-soft);}
+.select option{color:#1c2430;background:#fff;}
+textarea.input{font-family:var(--mono);font-size:12.5px;min-height:130px;resize:vertical;}
+input[type=color]{width:46px;height:38px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);padding:3px;cursor:pointer;}
+
+.btn{border:none;cursor:pointer;border-radius:10px;font-weight:700;font-size:13.6px;padding:10px 18px;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;}
+.btn svg{width:15px;height:15px;}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;box-shadow:var(--shadow-sm);}
+.btn-primary:hover{filter:brightness(1.07);}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed;}
+.btn-ghost{background:var(--surface-3);color:var(--text);}
+.btn-ghost:hover{background:var(--border-soft);}
+.btn-soft{background:var(--accent-soft);color:var(--accent);}
+.btn-sm{padding:6px 12px;font-size:12px;border-radius:8px;}
+.btn-block{width:100%;}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+
+.segbar{display:inline-flex;gap:4px;background:var(--surface-2);border:1px solid var(--border);padding:4px;border-radius:11px;}
+.seg-btn{border:none;background:transparent;color:var(--text-dim);padding:7px 14px;border-radius:8px;font-weight:700;font-size:12.8px;cursor:pointer;}
+.seg-btn.active{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;}
+
+.chips{display:flex;gap:6px;flex-wrap:wrap;}
+.chip{border:1px solid var(--border-soft);background:var(--surface-2);color:var(--text);border-radius:999px;padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+.chip:hover{border-color:var(--accent);color:var(--accent);}
+.chip i{width:10px;height:10px;border-radius:3px;display:inline-block;}
+
+.toggles{display:flex;gap:12px;flex-wrap:wrap;font-size:12.4px;color:var(--text-dim);font-weight:700;}
+.toggles label{display:flex;align-items:center;gap:5px;cursor:pointer;}
+.toggles input{accent-color:var(--accent);}
+.toggles .mini{border:1px solid var(--border);background:var(--surface-2);color:var(--text);border-radius:8px;padding:4px 8px;font-size:12px;font-weight:700;cursor:pointer;}
+.toggles .mini option{color:#1c2430;background:#fff;}
+.toggles .sep{width:1px;height:18px;background:var(--border);align-self:center;}
+.toggles .lbl{color:var(--text-faint);font-weight:700;}
+.chart-head{margin-bottom:12px;}
+.chart-head .toggles{margin-top:10px;padding:9px 11px;border:1px solid var(--border-soft);border-radius:12px;background:var(--surface-2);}
+
+.plot-wrap{position:relative;background:#000;border-radius:14px;overflow:hidden;box-shadow:var(--shadow-md);}
+.plot-wrap canvas{display:block;width:100%;cursor:crosshair;}
+.readout{position:absolute;left:12px;bottom:10px;background:rgba(0,0,0,.72);color:#e9eefb;font-family:var(--mono);font-size:12px;padding:5px 9px;border-radius:8px;pointer-events:none;opacity:0;transition:opacity .15s;border:1px solid rgba(255,255,255,.18);}
+.readout.show{opacity:1;}
+
+/* 色點結果 */
+.swatch{height:120px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-family:var(--mono);font-weight:700;border:1px solid rgba(0,0,0,.15);box-shadow:var(--shadow-md);transition:background .2s;}
+.swatch .hx{font-size:28px;letter-spacing:1px;}
+.swatch .sm{font-size:12.5px;opacity:.85;}
+.color-frame{margin-top:14px;border:4px solid #999;border-radius:16px;padding:14px;background:var(--surface-2);transition:border-color .2s,box-shadow .2s;}
+.kv{display:grid;grid-template-columns:118px 1fr auto;gap:6px 10px;align-items:center;font-size:13px;}
+.kv .k{color:var(--text-dim);font-weight:700;font-size:12.3px;}
+.kv .v{font-family:var(--mono);font-weight:700;word-break:break-all;}
+.copy{border:1px solid var(--border);background:var(--surface);color:var(--text-dim);border-radius:7px;font-size:11px;font-weight:700;padding:3px 8px;cursor:pointer;}
+.copy:hover{color:var(--accent);border-color:var(--accent);}
+.rgb-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0;}
+.rgb-tile{border-radius:12px;padding:10px;text-align:center;background:var(--surface);border:1px solid var(--border-soft);}
+.rgb-tile .l{font-size:11.5px;font-weight:800;color:var(--text-dim);}
+.rgb-tile .n{font-size:26px;font-weight:900;font-family:var(--mono);}
+.rgb-tile.r .n{color:#d23a2c;} .rgb-tile.g .n{color:#2f8f3a;} .rgb-tile.b .n{color:#2d62c9;}
+html[data-theme="dark"] .rgb-tile.r .n{color:#ff7a6e;} html[data-theme="dark"] .rgb-tile.g .n{color:#5fdc7a;} html[data-theme="dark"] .rgb-tile.b .n{color:#7fa8ff;}
+.divider{height:1px;background:var(--border-soft);margin:12px 0;}
+
+.alert{border-radius:12px;padding:10px 13px;font-size:12.6px;line-height:1.6;margin-top:12px;}
+.alert.warn{background:var(--warn-soft);color:var(--warn);}
+.alert.bad{background:var(--bad-soft);color:var(--bad);}
+.alert.good{background:var(--good-soft);color:var(--good);}
+.alert.info{background:var(--accent-soft);color:var(--accent);}
+
+.dropzone{border:2px dashed var(--border);border-radius:var(--radius-md);padding:20px 16px;text-align:center;cursor:pointer;background:var(--surface-2);transition:.18s;}
+.dropzone:hover,.dropzone.drag{border-color:var(--accent);background:var(--accent-soft);}
+.dropzone h4{margin:0 0 4px;font-size:14px;font-weight:800;}
+.dropzone p{margin:0;font-size:12px;color:var(--text-dim);}
+.dropzone input{display:none;}
+
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px;}
+.stat{border:1px solid var(--border-soft);border-radius:var(--radius-md);background:var(--surface);padding:12px 14px;}
+.stat .k{font-size:11.8px;font-weight:800;color:var(--text-dim);}
+.stat .v{font-size:22px;font-weight:900;font-family:var(--mono);margin-top:3px;}
+.stat .s{font-size:11.2px;color:var(--text-faint);margin-top:1px;}
+.stat.bad{border-color:var(--bad);background:var(--bad-soft);} .stat.bad .v{color:var(--bad);}
+.stat.good .v{color:var(--good);}
+
+.spec-strip{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px;}
+.spec-pill{font-family:var(--mono);font-weight:700;background:var(--accent-soft);color:var(--accent);padding:6px 12px;border-radius:10px;}
+
+.table-wrap{border:1px solid var(--border-soft);border-radius:var(--radius-md);overflow:auto;max-height:620px;background:var(--surface);}
+table.dt{border-collapse:separate;border-spacing:0;width:100%;font-size:12.8px;}
+table.dt th{position:sticky;top:0;background:var(--surface-3);color:var(--text-dim);text-align:left;padding:9px 10px;font-weight:800;white-space:nowrap;border-bottom:1px solid var(--border);z-index:1;}
+table.dt td{padding:7px 10px;border-bottom:1px solid var(--border-soft);white-space:nowrap;}
+table.dt td.num,table.dt th.num{text-align:right;font-family:var(--mono);}
+table.dt td.oos{color:var(--bad);font-weight:900;background:var(--bad-soft);}
+table.dt tr.ng td:first-child{box-shadow:inset 3px 0 0 var(--bad);}
+.sw{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;border:1px solid rgba(0,0,0,.25);}
+.tag{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;}
+.tag.ok{background:var(--good-soft);color:var(--good);}
+.tag.ng{background:var(--bad-soft);color:var(--bad);}
+.empty{padding:28px;text-align:center;color:var(--text-faint);font-size:13px;}
+
+#toastHost{position:fixed;right:20px;bottom:20px;display:flex;flex-direction:column;gap:10px;z-index:9999;}
+.toast{min-width:240px;max-width:380px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-lg);padding:11px 14px;font-size:12.8px;animation:fadein .25s ease;}
+.toast b{display:block;margin-bottom:1px;}
+.toast.error b{color:var(--bad);} .toast.success b{color:var(--good);}
+html[data-style="glass"] .toast{background:var(--surface-3);}
+.spinner{width:15px;height:15px;border-radius:50%;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.footer-note{text-align:center;color:var(--text-faint);font-size:11.5px;margin-top:24px;}
+</style>
+</head>
+<body>
+<div id="toastHost"></div>
+<div class="app-shell">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none"><path d="M5 20V5.5M5 20h14.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8 18c-.5-4 0-8 2.5-11 1.3-1.5 2.8-1.6 3.4.4.9 3 1.8 6 4.1 9.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><rect x="11.5" y="11" width="4" height="4" rx=".8" stroke="currentColor" stroke-width="1.6"/></svg></div>
+      <div>
+        <h1>CIE 1931 xy 色度圖工具</h1>
+        <p>色點查詢 · 規格框繪製 · 量測數據判定（全部在瀏覽器內處理，資料不會上傳）</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn btn-primary" id="btnInstall" hidden title="安裝成桌面應用程式"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="13" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 21h8M12 17v4M12 7v6m0 0-2.5-2.5M12 13l2.5-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>安裝到電腦</button>
+      <div class="theme-toggle" id="styleToggle">
+        <button data-style-btn="solid">標準</button>
+        <button data-style-btn="glass">液態玻璃</button>
+      </div>
+      <div class="theme-toggle" id="themeToggle">
+        <button data-theme-btn="light" title="淺色" aria-label="淺色"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.4M12 19v2.4M21.5 12h-2.4M4.9 12H2.5M18.7 5.3l-1.7 1.7M7 17l-1.7 1.7M18.7 18.7L17 17M7 7 5.3 5.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+        <button data-theme-btn="dark" title="深色" aria-label="深色"><svg viewBox="0 0 24 24" fill="none"><path d="M20 14.2A8.4 8.4 0 1 1 9.8 4a6.6 6.6 0 0 0 10.2 10.2z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabbar">
+    <button class="tab-btn active" data-tab="pt"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.9"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>1 色點查詢</button>
+    <button class="tab-btn" data-tab="box"><svg viewBox="0 0 24 24" fill="none"><rect x="5" y="6" width="14" height="12" rx="1.5" stroke="currentColor" stroke-width="1.9" stroke-dasharray="3 2"/></svg>2 規格框繪製</button>
+    <button class="tab-btn" data-tab="data"><svg viewBox="0 0 24 24" fill="none"><path d="M4 5h16M4 10h16M4 15h10M4 20h7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="18" cy="18" r="3" stroke="currentColor" stroke-width="1.7"/></svg>3 量測數據判定</button>
+  </div>
+
+  <!-- ================= 1 色點查詢 ================= -->
+  <section class="tab-panel active" id="tab-pt">
+    <div class="layout">
+      <div>
+        <div class="card">
+          <div class="card-head"><div>
+            <div class="card-title"><span class="badge-step">1</span>輸入色度座標</div>
+            <div class="card-sub">輸入 x、y 後即時更新；也可以直接點右邊的色度圖選點。</div>
+          </div></div>
+          <div class="field-grid">
+            <div class="field"><label for="ptX">x 座標</label><input class="input mono big" id="ptX" type="number" step="0.0001" min="0" max="1"></div>
+            <div class="field"><label for="ptY">y 座標</label><input class="input mono big" id="ptY" type="number" step="0.0001" min="0" max="1"></div>
+          </div>
+          <div class="hint" style="margin:12px 0 6px;">常用色點</div>
+          <div class="chips" id="ptChips"></div>
+          <div id="ptAlert"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div>
+            <div class="card-title"><span class="badge-step">2</span>顏色代碼</div>
+            <div class="card-sub">色碼為該色度在 sRGB 下的最亮表示（色度圖只有色度、沒有亮度）。</div>
+          </div></div>
+          <div class="swatch" id="ptSwatch"><div class="hx" id="ptHexBig">#FFFFFF</div><div class="sm" id="ptSwSub"></div></div>
+          <div class="color-frame" id="ptFrame">
+            <div class="kv">
+              <div class="k">標準色碼 HEX</div><div class="v" id="vHex"></div><button class="copy" data-copy="vHex">複製</button>
+              <div class="k">RGB</div><div class="v" id="vRgb"></div><button class="copy" data-copy="vRgb">複製</button>
+            </div>
+            <div class="hint" style="margin-top:12px;font-weight:700;">Excel 自訂色彩（常用 → 填滿色彩 → 其他色彩 → 自訂 → 色彩模式 RGB）</div>
+            <div class="rgb-tiles">
+              <div class="rgb-tile r"><div class="l">紅 (R)</div><div class="n" id="vR">0</div></div>
+              <div class="rgb-tile g"><div class="l">綠 (G)</div><div class="n" id="vG">0</div></div>
+              <div class="rgb-tile b"><div class="l">藍 (B)</div><div class="n" id="vB">0</div></div>
+            </div>
+            <div class="kv">
+              <div class="k">Excel HSL 模式</div><div class="v" id="vHsl"></div><button class="copy" data-copy="vHsl">複製</button>
+              <div class="k">VBA 色彩</div><div class="v" id="vVba"></div><button class="copy" data-copy="vVba">複製</button>
+              <div class="k">VBA 色彩值</div><div class="v" id="vLong"></div><button class="copy" data-copy="vLong">複製</button>
+            </div>
+            <div class="divider"></div>
+            <div class="kv">
+              <div class="k">CIE 1976 u′v′</div><div class="v" id="vUv"></div><span></span>
+              <div class="k">主波長</div><div class="v" id="vWl"></div><span></span>
+              <div class="k">色純度</div><div class="v" id="vPur"></div><span></span>
+              <div class="k">相關色溫 CCT</div><div class="v" id="vCct"></div><span></span>
+              <div class="k">sRGB 色域</div><div class="v" id="vGamut"></div><span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="chart-head">
+          <div><div class="card-title">CIE 1931 xy 色度圖</div><div class="card-sub">點一下圖上的位置即可選點。</div></div>
+          <div class="toggles" data-toggles></div>
+        </div>
+        <div class="plot-wrap"><canvas id="cv1"></canvas><div class="readout"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 2 規格框繪製 ================= -->
+  <section class="tab-panel" id="tab-box">
+    <div class="layout">
+      <div>
+        <div class="card">
+          <div class="card-head"><div>
+            <div class="card-title"><span class="badge-step">1</span>規格上下限</div>
+            <div class="card-sub">這組上下限也會帶到第三頁做量測判定。</div>
+          </div></div>
+          <div class="field-grid">
+            <div class="field"><label for="spX0">x 下限</label><input class="input mono" id="spX0" type="number" step="0.0001"></div>
+            <div class="field"><label for="spX1">x 上限</label><input class="input mono" id="spX1" type="number" step="0.0001"></div>
+            <div class="field"><label for="spY0">y 下限</label><input class="input mono" id="spY0" type="number" step="0.0001"></div>
+            <div class="field"><label for="spY1">y 上限</label><input class="input mono" id="spY1" type="number" step="0.0001"></div>
+          </div>
+          <div class="field-grid" style="margin-top:12px;">
+            <div class="field"><label for="rcColor">框線顏色</label><div class="row"><input type="color" id="rcColor"><span class="hint" id="rcColorTxt"></span></div></div>
+            <div class="field"><label for="rcLw">框線粗細</label><select class="select" id="rcLw"><option value="2">細</option><option value="3">標準</option><option value="4.5">粗</option><option value="6">特粗</option></select></div>
+          </div>
+          <div id="specInfo"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div>
+            <div class="card-title"><span class="badge-step">2</span>顯示範圍</div>
+            <div class="card-sub">規格框通常很小，可以放大到規格框附近看清楚。</div>
+          </div></div>
+          <div class="segbar" id="viewMode">
+            <button class="seg-btn" data-v="full">全圖</button>
+            <button class="seg-btn" data-v="zoom">放大至規格框</button>
+            <button class="seg-btn" data-v="custom">自訂範圍</button>
+          </div>
+          <div id="zoomOpts" class="field" style="margin-top:12px;">
+            <label for="vwPad">放大倍率（顯示範圍 = 規格框最大邊 × 倍數）</label>
+            <select class="select" id="vwPad"><option value="1.6">1.6 倍（很近）</option><option value="2.5">2.5 倍</option><option value="4">4 倍</option><option value="8">8 倍</option><option value="16">16 倍（較遠）</option></select>
+          </div>
+          <div id="customOpts" class="field-grid" style="margin-top:12px;">
+            <div class="field"><label for="vwX0">x 起</label><input class="input mono" id="vwX0" type="number" step="0.001"></div>
+            <div class="field"><label for="vwX1">x 迄</label><input class="input mono" id="vwX1" type="number" step="0.001"></div>
+            <div class="field"><label for="vwY0">y 起</label><input class="input mono" id="vwY0" type="number" step="0.001"></div>
+            <div class="field"><label for="vwY1">y 迄</label><input class="input mono" id="vwY1" type="number" step="0.001"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div>
+            <div class="card-title"><span class="badge-step">3</span>輸出高清圖片</div>
+            <div class="card-sub">輸出的圖與右邊顯示的完全相同（含顯示範圍、勾選的標示、圖面語言）。</div>
+          </div></div>
+          <div class="segbar" id="imgFmt">
+            <button class="seg-btn active" data-f="png">PNG</button>
+            <button class="seg-btn" data-f="jpg">JPG</button>
+            <button class="seg-btn" data-f="svg">SVG</button>
+          </div>
+          <div class="field-grid" style="margin-top:12px;">
+            <div class="field"><label for="imgW">圖片寬度</label><select class="select" id="imgW"><option value="1600">1600 px</option><option value="2400" selected>2400 px</option><option value="3600">3600 px</option><option value="4800">4800 px（超高清）</option></select></div>
+            <div class="field"><label for="imgName">檔名</label><input class="input" id="imgName" type="text" value="CIE1931_規格框"></div>
+          </div>
+          <div class="hint" style="margin-top:8px;" id="imgHint"></div>
+          <button class="btn btn-primary btn-block" id="btnImg" style="margin-top:12px;"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>下載圖片</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="chart-head">
+          <div><div class="card-title">CIE 1931 xy 色度圖 · 規格框</div><div class="card-sub" id="boxSub"></div></div>
+          <div class="toggles" data-toggles></div>
+        </div>
+        <div class="plot-wrap"><canvas id="cv2"></canvas><div class="readout"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 3 量測數據判定 ================= -->
+  <section class="tab-panel" id="tab-data">
+    <div class="card">
+      <div class="card-head">
+        <div><div class="card-title"><span class="badge-step">1</span>規格（自第二頁帶入）與量測資料</div>
+        <div class="card-sub">上傳 Excel／CSV，或從 Excel 複製 x、y 兩欄（可含編號欄）直接貼上。超出上下限的數值會標成紅色。</div></div>
+        <button class="btn btn-soft btn-sm" id="btnGoSpec">到第二頁修改規格</button>
+      </div>
+      <div class="spec-strip" id="specStrip"></div>
+      <div class="layout-2" style="margin-top:16px;">
+        <div>
+          <div class="dropzone" id="dz">
+            <input type="file" id="fileData" accept=".xlsx,.xlsm,.xls,.csv,.txt">
+            <h4>點擊選擇或拖曳 Excel／CSV 檔</h4>
+            <p>.xlsx / .xls / .csv — 會自動找出 x、y 欄位，找錯可在下方改選</p>
+          </div>
+          <div class="field-grid" style="margin-top:12px;grid-template-columns:repeat(2,1fr);" id="mapArea"></div>
+          <div id="dataAlert"></div>
+        </div>
+        <div class="field">
+          <label for="pasteBox">或直接貼上資料（每列一筆：編號 x y，或 x y；Tab、逗號、空白分隔皆可）</label>
+          <textarea class="input" id="pasteBox" placeholder="No.	x	y&#10;1	0.3102	0.3285&#10;2	0.3121	0.3301"></textarea>
+          <div class="row">
+            <button class="btn btn-primary btn-sm" id="btnPaste">套用貼上的資料</button>
+            <button class="btn btn-ghost btn-sm" id="btnSample">產生範例資料</button>
+            <button class="btn btn-ghost btn-sm" id="btnClear">清除資料</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stat-grid" id="statGrid"></div>
+
+    <div class="layout-2">
+      <div class="card">
+        <div class="card-head"><div><div class="card-title"><span class="badge-step">2</span>量測數值</div><div class="card-sub" id="tableSub"></div></div>
+          <div class="segbar" id="rowFilter"><button class="seg-btn active" data-f="all">全部</button><button class="seg-btn" data-f="ng">只看超規</button></div></div>
+        <div id="tableArea"></div>
+      </div>
+      <div>
+        <div class="card">
+          <div class="chart-head">
+            <div><div class="card-title">色度圖 · 規格框與量測點</div><div class="card-sub">顯示範圍與輸出設定在圖的下方，跟第二頁分開設定。</div></div>
+            <div class="toggles" data-toggles></div>
+          </div>
+          <div class="plot-wrap"><canvas id="cv3"></canvas><div class="readout"></div></div>
+          <div class="divider" style="margin:16px 0;"></div>
+          <div class="field"><label>顯示範圍</label>
+            <div class="segbar" id="viewMode3">
+              <button class="seg-btn" data-v="full">全圖</button>
+              <button class="seg-btn" data-v="zoom">放大至規格框＋量測點</button>
+              <button class="seg-btn" data-v="custom">自訂範圍</button>
+            </div>
+          </div>
+          <div id="zoomOpts3" class="field" style="margin-top:12px;">
+            <label for="vwPad3">放大倍率（顯示範圍 = 規格框最大邊 × 倍數，且一定包含所有量測點）</label>
+            <select class="select" id="vwPad3"><option value="1.6">1.6 倍（很近）</option><option value="2.5">2.5 倍</option><option value="4">4 倍</option><option value="8">8 倍</option><option value="16">16 倍（較遠）</option></select>
+          </div>
+          <div id="customOpts3" class="field-grid" style="margin-top:12px;">
+            <div class="field"><label for="vwX03">x 起</label><input class="input mono" id="vwX03" type="number" step="0.001"></div>
+            <div class="field"><label for="vwX13">x 迄</label><input class="input mono" id="vwX13" type="number" step="0.001"></div>
+            <div class="field"><label for="vwY03">y 起</label><input class="input mono" id="vwY03" type="number" step="0.001"></div>
+            <div class="field"><label for="vwY13">y 迄</label><input class="input mono" id="vwY13" type="number" step="0.001"></div>
+          </div>
+          <div class="divider" style="margin:16px 0;"></div>
+          <div class="field"><label>輸出圖片</label>
+            <div class="segbar" id="imgFmt3"><button class="seg-btn active" data-f="png">PNG</button><button class="seg-btn" data-f="jpg">JPG</button><button class="seg-btn" data-f="svg">SVG</button></div>
+          </div>
+          <div class="field-grid" style="margin-top:12px;">
+            <div class="field"><label for="imgW3">圖片寬度（清晰度）</label><select class="select" id="imgW3"><option value="1600">1600 px</option><option value="2400" selected>2400 px</option><option value="3600">3600 px</option><option value="4800">4800 px（超高清）</option></select></div>
+            <div class="field"><label for="imgName3">檔名</label><input class="input" id="imgName3" type="text"></div>
+          </div>
+          <div class="hint" style="margin-top:8px;" id="imgHint3"></div>
+          <button class="btn btn-primary btn-block" id="btnImg3" style="margin-top:12px;"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>下載圖片</button>
+        </div>
+        <div class="card">
+          <div class="card-head"><div>
+            <div class="card-title"><span class="badge-step">3</span>輸出 Excel</div>
+            <div class="card-sub">內容：色度圖（規格框＋量測點，依上方的顯示範圍與圖面語言）圖片、規格上下限、統計（平均／最大／最小／標準差）、全部量測數值與判定，超規的格子標紅。</div>
+          </div></div>
+          <div class="field"><label for="xlName">檔名</label><input class="input" id="xlName" type="text"></div>
+          <button class="btn btn-primary btn-block" id="btnXl" style="margin-top:12px;" disabled><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>輸出 Excel</button>
+          <div id="xlAlert"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer-note">CIE 1931 2° 標準觀察者 · 色碼以 sRGB（D65）換算 · 建議使用 Chrome / Edge</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+'use strict';
+/* =========================================================================
+ * 色度學資料
+ * ========================================================================= */
+// CIE 1931 2° 光譜軌跡（5 nm），700 nm 以後色度幾乎不變
+const LOCUS = [
+[380,.1741,.0050],[385,.1740,.0050],[390,.1738,.0049],[395,.1736,.0049],[400,.1733,.0048],[405,.1730,.0048],[410,.1726,.0048],[415,.1721,.0048],
+[420,.1714,.0051],[425,.1703,.0058],[430,.1689,.0069],[435,.1669,.0086],[440,.1644,.0109],[445,.1611,.0138],[450,.1566,.0177],[455,.1510,.0227],
+[460,.1440,.0297],[465,.1355,.0399],[470,.1241,.0578],[475,.1096,.0868],[480,.0913,.1327],[485,.0687,.2007],[490,.0454,.2950],[495,.0235,.4127],
+[500,.0082,.5384],[505,.0039,.6548],[510,.0139,.7502],[515,.0389,.8120],[520,.0743,.8338],[525,.1142,.8262],[530,.1547,.8059],[535,.1929,.7816],
+[540,.2296,.7543],[545,.2658,.7243],[550,.3016,.6923],[555,.3373,.6589],[560,.3731,.6245],[565,.4087,.5896],[570,.4441,.5547],[575,.4788,.5202],
+[580,.5125,.4866],[585,.5448,.4544],[590,.5752,.4242],[595,.6029,.3965],[600,.6270,.3725],[605,.6482,.3514],[610,.6658,.3340],[615,.6801,.3197],
+[620,.6915,.3083],[625,.7006,.2993],[630,.7079,.2920],[635,.7140,.2859],[640,.7190,.2809],[645,.7230,.2770],[650,.7260,.2740],[655,.7283,.2717],
+[660,.7300,.2700],[665,.7311,.2689],[670,.7320,.2680],[675,.7327,.2673],[680,.7334,.2666],[685,.7340,.2660],[690,.7344,.2656],[695,.7346,.2654],[700,.7347,.2653]
+];
+const WL_LABELS = [460,470,475,480,485,490,495,500,505,510,520,530,540,550,560,570,580,590,600,610,620,630,650,700];
+const D65 = [0.3127, 0.3290];
+const SRGB_TRI = [[0.64,0.33],[0.30,0.60],[0.15,0.06]];
+const FULL_VIEW = { x0:0, x1:0.8, y0:0, y1:0.9 };
+/* Kelly (1943) 光色名稱分區：依網路常見的 CIE 1931 色名分區圖描繪，並校正到正確的光譜軌跡上（近似值，供目視參考）
+ * KCT：網路常見樣式的色彩分佈（以 D65 附近為中心的極座標色表） */
+const KELLY = {"lines":{"white":[[0.4735,0.3755],[0.4235,0.3555],[0.416,0.3408],[0.4131,0.3355],[0.41,0.33],[0.4043,0.3206],[0.3998,0.3136],[0.3951,0.3066],[0.3901,0.3],[0.3859,0.2951],[0.3804,0.2891],[0.3769,0.2857],[0.3733,0.2823],[0.3673,0.277],[0.36,0.271],[0.3554,0.2676],[0.3508,0.2645],[0.332,0.253],[0.3352,0.227],[0.3392,0.2],[0.3305,0.1967],[0.3254,0.1951],[0.3193,0.1934],[0.3137,0.1919],[0.308,0.1906],[0.3036,0.1898],[0.2983,0.189],[0.293,0.1883],[0.2877,0.1878],[0.2824,0.1874],[0.2782,0.1873],[0.2718,0.1873],[0.2664,0.1874],[0.261,0.1878],[0.2568,0.1883],[0.2527,0.189],[0.2487,0.1899],[0.2447,0.191],[0.2407,0.1923],[0.2369,0.1938],[0.2342,0.1951],[0.2316,0.1965],[0.2286,0.1985],[0.2259,0.2006],[0.2233,0.2029],[0.2209,0.2053],[0.2188,0.2079],[0.2169,0.2106],[0.2152,0.2133],[0.2135,0.2167],[0.2124,0.2195],[0.2117,0.2217],[0.2111,0.2241],[0.2101,0.2291],[0.2096,0.2343],[0.2095,0.2409],[0.2097,0.248],[0.2105,0.2571],[0.2114,0.2643],[0.2128,0.2723],[0.2142,0.2778],[0.2161,0.2844],[0.2185,0.2908],[0.2211,0.2971],[0.224,0.3036],[0.2267,0.309],[0.2305,0.3158],[0.2345,0.3224],[0.2388,0.3291],[0.2442,0.337],[0.249,0.3439],[0.2541,0.3506],[0.2583,0.356],[0.2627,0.3612],[0.2674,0.3663],[0.2713,0.3702],[0.278,0.3764],[0.2851,0.3825],[0.3186,0.4093],[0.3245,0.4139],[0.3305,0.4183],[0.3366,0.4225],[0.3407,0.4251],[0.347,0.4286],[0.3531,0.4316],[0.3594,0.4342],[0.366,0.4366],[0.3727,0.4388],[0.3814,0.4412],[0.3898,0.4431],[0.3991,0.4449],[0.4044,0.4457],[0.4092,0.4461],[0.4138,0.4462],[0.4183,0.446],[0.4233,0.4453],[0.4292,0.4442],[0.4353,0.4427],[0.4401,0.4411],[0.4447,0.4392],[0.4469,0.4381],[0.449,0.4369],[0.4518,0.435],[0.4554,0.432],[0.4588,0.4286],[0.4619,0.425],[0.4647,0.4212],[0.4665,0.4183],[0.4676,0.4164],[0.4688,0.4138],[0.4698,0.4111],[0.4707,0.4076],[0.4713,0.4039],[0.4729,0.3901],[0.4731,0.3862],[0.4735,0.3763]],"g_yg":[[0.0477,0.8174],[0.0828,0.776],[0.0913,0.7659],[0.0996,0.7558],[0.1094,0.7434],[0.119,0.7312],[0.1284,0.7189],[0.1395,0.7042],[0.1523,0.6869],[0.163,0.672],[0.1736,0.657],[0.1822,0.6445],[0.1905,0.6321],[0.1997,0.6179],[0.2087,0.6036],[0.216,0.5917],[0.2231,0.5798],[0.2327,0.5632],[0.2394,0.5514],[0.2459,0.5395],[0.2509,0.5299],[0.2557,0.5202],[0.2603,0.5103],[0.2648,0.5002],[0.2692,0.4901],[0.2744,0.4773],[0.2793,0.4645],[0.2832,0.4541],[0.2859,0.4462],[0.2894,0.4357],[0.3018,0.3958]],"yg_ygr":[[0.3409,0.6554],[0.3464,0.6131],[0.3477,0.6022],[0.3485,0.5934],[0.3496,0.5799],[0.3507,0.564],[0.3515,0.548],[0.3524,0.5274],[0.3528,0.5158],[0.353,0.5042],[0.353,0.4926],[0.3528,0.4833],[0.3525,0.4763],[0.352,0.467],[0.349,0.4297]],"ygr_gy":[[0.4142,0.5842],[0.4139,0.5717],[0.4136,0.5507],[0.4134,0.5412],[0.4127,0.5299],[0.4121,0.5225],[0.4114,0.5151],[0.4105,0.5077],[0.4093,0.4986],[0.4079,0.4895],[0.4067,0.4823],[0.4047,0.4716],[0.3991,0.4449]],"gy_y":[[0.4495,0.5493],[0.448,0.5395],[0.4459,0.5239],[0.445,0.5182],[0.4434,0.5097],[0.4413,0.5009],[0.4397,0.4951],[0.4375,0.4877],[0.4353,0.4806],[0.4325,0.4724],[0.4293,0.4637],[0.4222,0.4455]],"y_oy":[[0.4974,0.5017],[0.4866,0.4832],[0.4829,0.4772],[0.4778,0.4694],[0.4731,0.4626],[0.4687,0.4567],[0.4648,0.452],[0.4604,0.4473],[0.45,0.4363]],"oy_o":[[0.5489,0.4503],[0.5309,0.4391],[0.5266,0.4366],[0.5222,0.4343],[0.517,0.4318],[0.5041,0.4262],[0.4699,0.4108]],"bg_g":[[0.0096,0.527],[0.0951,0.4895],[0.1027,0.4863],[0.1203,0.4791],[0.1304,0.4747],[0.1381,0.4711],[0.1433,0.4684],[0.1485,0.4655],[0.1545,0.4618],[0.1614,0.4573],[0.1686,0.4523],[0.176,0.4469],[0.1835,0.4413],[0.191,0.4355],[0.1984,0.4295],[0.2056,0.4236],[0.2161,0.4149],[0.2342,0.3992],[0.2423,0.3918],[0.2493,0.3849],[0.2621,0.3717],[0.2674,0.3663]],"gb_bg":[[0.052,0.2682],[0.0828,0.2806],[0.0894,0.283],[0.096,0.2853],[0.106,0.2883],[0.1179,0.2915],[0.1298,0.2943],[0.1419,0.2968],[0.1524,0.2988],[0.1629,0.3005],[0.1718,0.3016],[0.1807,0.3024],[0.1881,0.3027],[0.1955,0.3028],[0.2234,0.3022]],"b_gb":[[0.0859,0.149],[0.1052,0.1685],[0.1177,0.1813],[0.1247,0.1883],[0.1419,0.2048],[0.1457,0.2083],[0.151,0.2129],[0.1552,0.2161],[0.1596,0.2191],[0.1629,0.2211],[0.1665,0.223],[0.1723,0.2257],[0.1762,0.2273],[0.1824,0.2296],[0.2012,0.2361],[0.2095,0.2391]],"pb_b":[[0.1331,0.0437],[0.1383,0.0602],[0.1442,0.08],[0.1459,0.085],[0.1477,0.09],[0.1504,0.0969],[0.1537,0.1045],[0.1574,0.1123],[0.1613,0.12],[0.1684,0.1336],[0.1768,0.1487],[0.1847,0.1622],[0.1916,0.1732],[0.1971,0.1817],[0.2025,0.1894],[0.2072,0.1956],[0.2179,0.2092]],"v_pb":[[0.1578,0.0166],[0.1646,0.0421],[0.1702,0.0632],[0.1734,0.0748],[0.1772,0.087],[0.1807,0.0979],[0.1839,0.1071],[0.1873,0.1162],[0.1903,0.1236],[0.1945,0.1334],[0.1992,0.1432],[0.204,0.1529],[0.2114,0.1675],[0.2151,0.1744],[0.2286,0.1984]],"p_v":[[0.2317,0.0318],[0.233,0.0683],[0.2335,0.0787],[0.234,0.0853],[0.2349,0.0943],[0.2358,0.1017],[0.2371,0.1105],[0.2388,0.1212],[0.2407,0.1314],[0.2432,0.1436],[0.2455,0.1536],[0.2475,0.1613],[0.2492,0.1675],[0.2558,0.1884]],"o_ro":[[0.4735,0.3755],[0.4935,0.3773],[0.5049,0.3786],[0.6055,0.3939]],"arc":[[0.5236,0.3815],[0.5266,0.3641],[0.5273,0.359],[0.5277,0.3551],[0.528,0.3487],[0.5281,0.3432],[0.5279,0.3368],[0.5275,0.3312],[0.5264,0.3235],[0.522,0.2965],[0.5209,0.2908],[0.5182,0.279],[0.5168,0.2743],[0.5153,0.2707],[0.5143,0.2688],[0.5133,0.2672],[0.5121,0.2657],[0.5105,0.2637],[0.5022,0.2551],[0.4962,0.2494],[0.4838,0.2387],[0.4722,0.2291],[0.4641,0.2228],[0.4534,0.2152],[0.4497,0.2127],[0.4459,0.2103],[0.442,0.2081],[0.439,0.2065],[0.4352,0.2046],[0.4304,0.2024],[0.4255,0.2004],[0.4191,0.198],[0.4106,0.1948],[0.4012,0.1914],[0.3912,0.188],[0.3831,0.1854],[0.3736,0.1825],[0.3646,0.1801],[0.3569,0.1785],[0.3396,0.1752]],"yp_p":[[0.41,0.33],[0.433,0.3335],[0.4431,0.3349],[0.4482,0.3354],[0.454,0.3358],[0.4668,0.3363],[0.4842,0.3364],[0.5063,0.3361],[0.5143,0.3357],[0.5409,0.3343],[0.5544,0.3335],[0.5681,0.3322],[0.5814,0.3307],[0.5933,0.3291],[0.6033,0.3274],[0.615,0.3251],[0.6367,0.3202],[0.6915,0.3083]],"p_pp":[[0.388,0.2975],[0.4066,0.2904],[0.4159,0.2872],[0.424,0.2847],[0.4434,0.279],[0.4588,0.2742],[0.4664,0.2717],[0.4716,0.2698],[0.4758,0.268],[0.4803,0.2658],[0.4844,0.2635],[0.4876,0.2616],[0.4905,0.2597],[0.4922,0.2583],[0.4943,0.2566],[0.4992,0.252],[0.4991,0.2521]],"r_pr":[[0.5147,0.2695],[0.5177,0.2683],[0.5369,0.2644],[0.5468,0.2622],[0.555,0.26],[0.5729,0.2551],[0.5819,0.2529],[0.6681,0.2344]],"pr_rp":[[0.4125,0.1955],[0.4138,0.1919],[0.4187,0.1739],[0.4217,0.1636],[0.4337,0.1255]],"pp_w_rp":[[0.3392,0.2],[0.3396,0.1736],[0.3399,0.1395],[0.34,0.1198],[0.34,0.082]]},"labels":[["Green","綠",0.1139,0.6111,0],["Yellowish Green","偏黃綠",0.2792,0.6226,0],["Yellow Green","黃綠",0.3829,0.5506,0],["Greenish Yellow","偏綠黃",0.4325,0.5027,-79],["Yellow","黃",0.4653,0.487,0],["Orange Yellow","橙黃",0.504,0.4551,0],["Orange","橙",0.5027,0.3966,0],["Reddish Orange","偏紅橙",0.5768,0.3612,0],["Red","紅",0.6402,0.2825,0],["Purplish Red","偏紫紅",0.5242,0.2058,0],["Reddish Purple","偏紅紫",0.3801,0.1457,0],["Purple","紫",0.2868,0.1282,0],["Violet","藍紫",0.1989,0.0578,0],["Purplish Blue","偏紫藍",0.177,0.1197,-70],["Blue","藍",0.1341,0.1431,0],["Greenish Blue","偏綠藍",0.1362,0.2608,0],["Bluish Green","偏藍綠",0.1117,0.4159,0],["Yellowish Pink","偏黃粉紅",0.4731,0.3501,0],["Pink","粉紅",0.467,0.2937,0],["Purplish Pink","偏紫粉紅",0.3955,0.2356,0],["White","白",0.283,0.247,0]]};
+const KCT = { cx:0.318, cy:0.33, na:120, nt:16, hex:"f9f9f6f9f9f6faf8f4fbf7f1f4ddcfebae99db765ad13e2bd03126cf2f26d22f24d02f25ca3023d23024d12f23d02d24f9f9f6f9f9f6f9f8f4fbf9f2f9e9ddefc0ade19076d4583ecf3b29cf3827d13721ce381fd03521d33521d53421d53221f9f9f6f9f9f6f9f8f4fbf9f3fbf1e5f1d0bee7a990dc7758d44f31cf4225d23e22d33d1dcd3d22ce3b22d33c23d03d23f9f9f6f9f9f6f9f8f4fbf9f3fcf4eaf5dccaedbba2e38f6ddb673dd54d23d14722d5451fcf481fce4720ce4321ca4122f9f9f6f9f9f6f9f8f4faf8f4fcf6edf9e4d3efc7aee7a27fe17c4fd95d28d15520d45221d3501ed3501cd24e1fce4e23f9f9f6f9f9f6f9f8f4faf8f4fcf7effce9d8f2d0b6e9b08ce38e60db6e35d56323d36121d8611fd56021d7611fd8611ff9f9f6f9f9f6f8f8f4faf8f4fcf8f0fdecdbf3d5bcecbc97e59e6ede8143d97128d56f22d66e1dda6e20db6e1fda6c1ef9f9f6f9f9f6f9f8f5faf8f3fcf8f1fcedddf5d9c0efc49ee8a978e2904edc7e2ed87a24d97921dc781fe0781edf771ef9f9f6faf9f6f9f8f5faf8f3fcf8f1fbeedef7ddc2f0c7a0eab17ee59950de8a38db8526da8422df8120e08222e18123f9f9f6faf9f6f9f8f5faf8f2fcf7f0faefdff8dfc3f1c9a2eab682e6a054e1953ee0912bde9026de8b25e08a26e08a28f9f9f6faf9f6faf9f5faf8f2fbf6effaefe0f8e0c3f2cda4eaba82e7a859e39f3ee19b2ee29928e0962ae4962ae3952cf9f9f6faf9f6faf9f5fbf8f2faf6ecfaefdef7e1c0f2d0a2ecbe7ae8ae55e4a53ae3a12ce29f25e29e25e49e27e39d29f9f9f6faf9f6fbfaf6fbf9f1faf5e9f9efd8f6e1bbf2d29aecc272ebb34de6aa34e5a823e3a820e5a91de8a71ee7a620f9f9f6faf9f6fbfaf6fbf9f1faf5e7f9eed3f6e2b5f1d494edc56feeb946e8b42ee7b321e6b31ee6b219e8af12e7af16f9f9f6faf9f6fcfbf7fcf9f1faf6e6f8eecef5e3aff1d58ff0c967eec03ce9bc27ebbd1eeabc1ee8ba19e8b817e7b818f9f9f6faf9f6fcfbf7fcfaf1fbf6e6f8eecaf5e4aaf2d788f2cd5decc733eac221ecc415edc315ebc318ebc31aebc21df9f9f6faf9f6fdfbf7fdfaf1fcf7e4f8eec4f4e4a3f2d97ff0d152eccc30ebc81feec915eec917eecb18eec917eeca1af9f9f6faf9f6fdfcf7fdfbf1fcf7dff7eebdf3e49bf2db75efd54aecd231ebce20edcd1deecf1fefd219f0d118f0d01ef9f9f6faf9f6fdfcf8fefbf0fcf6daf6efb6f3e692f1df6beed945ecd82eebd625ecd525ecd622eed71ff1d71ef2d71ef9f9f6fbf9f7fdfcf8fefbeffbf6d4f5efaef2e789f0e35fedde3decdf2aebde28ecde2aebdd27ebdc24eedd24edde24f9f9f6fbf9f7fefcf8fefbedfaf5cef3f0a6f1e87fefe653ece32fece327ebe327eae32be9e229e9e229eae42bebe52cf9f9f6fbf9f7fefcf8fdfae9f8f4c6f2ee9befe971ece643ebe526ece627eae526e8e528e7e62ae7e62de9e72de8e62ef9f9f6fbfaf7fefcf7fcf9e6f6f3c1f0ed94ecea6ae9e737e9e527e9e627e8e729e6e627e5e72de4e72be3e72ce3e72df9f9f6fbfaf7fdfcf7fbf8e1f3f1b9edec89e8e85de5e62be5e526e5e623e2e525e0e524dfe529dee628d9e329d8e32cf9f9f6fcfaf8fdfcf5f8f7dbeff0afe8e97ddfe449dfe327dee325dee424dce223d9e124d9e227d6e12ad4e028d4e02bf9f9f6fcfaf8fcfcf4f6f5d4eaeda4e0e56fd7e037d8e026d7e026d6e123d5df24d2dd29d0dd26d0dd25d1dc27d0da27f9f9f6fcfaf8fbfbf1f2f3cbe3e997d5e05bd2dd2bd0dc24d0dc26cfdc22cedb22cbda22cad922cbda21ccd921cbd922f9f9f6fcfbf8f9fbeeecf0c1dae489cddc45ccda21c9d921c8d724c8d721c6d721c3d61fc5d621c5d722c5d721c3d622f9f9f6fdfbf8f8faeae5ecb5d0df77c6d935c3d61dc1d61ec1d421c1d51ebdd41fbed31fbcd31ebcd320bad31fb8d31ff9f9f6fdfbf8f5f8e5dde7a7c3d861bdd428bad121b8d020b7d022b5d11eb5d01fb5d01bb2cf1db2cf1cb0ce1db0ce21f9f9f6fdfbf8f1f5ded2e199b8d44db1cd22afcb24accb22abcc26abcb26abca27a9cb27a9ca27a9c926a8ca28a8ca29f9f9f6fcfbf8ecf1d5c5da89abce3ea4c826a2c726a0c7299ec62c9dc62b9bc62c9bc42d9dc42f99c42d98c32f99c137f9f9f6fcfbf7e4eccab6d3799fc73296c42b94c22d91c0308fc0328cc0308bbe308abe2f8bbd3388bc2e87ba3185b934f9f9f6fbfbf6d9e6bda6cb6793c12f8abf2e87bc3282bb3282ba337eb9347cb7357cb73579b72e78b63276b63276b633f9f9f6fafaf4ccdeb097c35586bc3482b9337ab63476b53375b33572b43570b23771b23270b3356fb3346eb2346fb235f9f9f6f8f9f2bed8a387bc477ab63575b3376eb1386db1356bb13669af3569af3567af3668af3467af3665b03565af35f9f9f6f6f8eeadd09277b53f6daf3568af3967ad3865ae3a65ac3b62ae3761ad3760ad3762ac3860ac3861ab3862ab34f9f9f6f2f6ea9ac7806caf3c62ad3861ab3a5daa3a5ea93c5ca83a5eaa385baa3a5baa395aa9395aaa3a5aaa395aa93af9f9f6eff4e78ec17662ac3a5bab395aa83956a83a56a73b55a73b54a53c54a63b54a63e51a53950a63a50a73b51a73cf9f9f6eff4e78bbf765aaa3a55a93a53a63b4fa53951a43c4ca63a4da4394da43c4da43c4ba33d4aa23c4ba33e4ca43ef9f9f6f0f5e88cbf7d54a83c4ea63b4ca43c48a43b49a23c46a33c44a23946a23b45a23d44a33d43a13b42a23e45a03cf9f9f6f1f6ea93c28851a63f49a43c45a23b42a23d40a13c3fa13d3ea13c3ca13c3ca13c3ba03e3ba03e399f3b399f39f9f9f6f3f7ec9ac69250a54442a23d3ea13c3a9f3d37a03e369f3d349f3c379d40349f3d329f3e339f3f339e3d329f3df9f9f6f4f8eea3ca9c50a44a3aa03e369e3d329e3e2f9e3e2e9d3f2d9c3c2b9c3f2b9b3e289e3d279c3d299c40279d3df9f9f6f6f9f0afd0aa55a654359d3f2f9c3d2b9c3e259c3e249c3f229b3d1f9b3e209b401e9c3f1d9b3e1c9a3d1d9b3ff9f9f6f7faf1bbd5b75ea95f319c41239b3e22993f1e9a3f1b9a3e1a9a40189a4017993f15993e16993e15993f14993ef9f9f6f8fbf3c4dac269ae6b2f9b451c99401a963e1899401397401099401098400f98410c98400a974108983e07983cf9f9f6f8fbf4cde0cc76b37a309b4b14983f0f97401094410e95400d95400a944003974005974103953f03963f049640f9f9f6f8fbf4d5e5d483b988359d520d973f08964105943f05944105954006924005933f05954106924003943f079341f9f9f6f9fbf5dceadb91bf963ea15a07974103964001963f029541019641019640019542009641009642059542079442f9f9f6f9fbf5e3efe3a1c7a753a7690a9746019843009642009740039546019645019546029548009645019648019748f9f9f6f9fbf5e8f2e8adcfb266ad7715984e01984b01974a00974a04954d05954f01964d009752009652009752009753f9f9f6f9fbf6ebf4ecb8d5bd76b586299d5c0599530298560198550498580b955807955901995c01995d019a5e01995ef9f9f6f9fbf6eef5efc3dcc885be9641a56d119c60059a61039b62039a63099a660a9666039a67019d69029d6a029d6af9f9f6f9fbf6f1f6f1cde2d294c5a554ac7d27a171149f6f109f700da070089f6f0b9b71069f7105a17204a27405a375f9f9f6f9fbf6f3f7f3d7e7dca4cbb468b48d3da78029a37e26a47f23a3811da67f1ba4811ba38119a6801fa58121a481f9f9f6f9fbf6f5f8f5dfece4b3d2c17dbc9f53af8f3aa88b36a88c36a88f34a98e30aa8f32a98f30aa9032ac8e34aa8ef9f9f6f9fbf7f6f8f6e6efebbfd9cc91c5b066b8a04bae9942ad9841ad9a43ae9c43af9e44b09f45b1a147b1a249b1a2f9f9f6f9fbf7f7f9f7ebf2f0cae1d7a3cec178c1b15eb5a952b2a750b2a952b4ab52b5ab54b6ad55b6b057b6b157b7b1f9f9f6fafbf7f8faf8f0f5f4d6e8e2b4d7cf8dc9c270bcb962b6b860b7b961b8bc63b9bb63b9bb63babe65bac066bbbff9f9f6fafbf7f9faf9f4f8f7e0eeebc3dfdba2d1d182c3c66dbbc369bbc46abbc76cbdc96dbcc76ebcc96ebccd70bccef9f9f6fafbf7fafbfaf7fafae9f4f3cee5e4b1d8dc91cad376c0cc6ebdcf6fbcd070bdd370bcd171bcd271bcd371bbd3f9f9f6fafbf7fafbfaf9fbfbeff7f8d6e9eabbdce39cd0db7ec2d371bbd470bad570b9d66fb8d56db8d66eb8d46eb8d3f9f9f6fafbf8fbfbfbfafcfcf3f9fbdcecefc0dee7a4d0df85bfd672b5d36cb3d26db1d26bb0d26ab0d369b0d16ab0d0f9f9f6fafbf8fbfbfbfafcfdf6f9fce2eef2c3dde8a8cde089bbd771add068a9cf65a6cc63a6cd63a5cc62a5ca63a6c9f9f9f6fafbf8fbfbfbfbfcfef7fafde6eff4c7ddeaadcce28bb7d86da5cd629fc8609ec65d9dc95b9ac6589ac6599bc5f9f9f6fafbf8fbfbfbfbfdfef8fafdeaf0f6cbddecb0cae38bb1d6699dc85d96c15a96c15391c1518fbf518fc1518fc1f9f9f6fafbf8fbfafbfbfdfef9fafeebeff6cddcecaec5e089abd26797c3548bb94c86b64b87b94885b94885ba4984baf9f9f6fbfbf8fafafafbfcfdf9fafdebeff6ced9ebadc0dd89a7cf628ebc497fb2427baf447eb4427cb4407db4417cb2f9f9f6fbfbf8faf9f9fbfcfdf8fafdebeef7cdd7eaabbcdb86a3ca5986b84078af3c76ae3d76ae3b76ad3876ae3876aff9f9f6fbfbf8faf9f9fafbfcf7f9fceaedf6ccd4e9a6b7d77f9ac34f7cb13b71ab3670aa376fa9376fa8356fa7356fa6f9f9f6fbfbf8f9f8f8fafafbf6f8fbe8ebf6cacfe6a1b0d27991bb4a73a93769a33469a43467a33468a33367a23268a2f9f9f6fbfbf8f9f8f8f9f9faf5f6fae5e7f4c4c8e19aa8cc6e85b2466ba237629d34619d34619d33609c32609c32609af9f9f6fbfbf8f9f7f7f8f8f9f3f4f8e0e2f0bcc1db939fc56478ab41619b375b99345996355996345996355898375898f9f9f6fbfbf8f9f7f7f8f7f8f1f1f6dadcecb2b7d38994be5a6da43f5896375496385595365493365491375492375594f9f9f6fafaf8f9f7f7f7f6f7ededf3d2d2e5a5aaca7c86b34e609c3e5192394f913b5092394f8e3b4f8e3b4f923a4e8df9f9f6fafaf8f9f7f7f6f5f6eae8f0cac8de9c9ec2757aaa4a5793424c8d3f4c8d3f4a903f4b8a424b92414b93404b92f9f9f6fafaf8f9f7f7f6f4f6e8e5eec3bdd79692ba6f6ea24e518d47498a45498945478a46488948498a48498e48488cf9f9f6fafaf8f9f7f8f6f4f7e6e1edbdb4d18f85b26b629a5349884e46874c44814d45834c46834d47874f468a50468af9f9f6faf9f8f9f7f8f6f4f7e3ddebb6accb8a79aa6956915b4485574283554180564281554482554285574389584389f9f9f6f9f9f7f9f7f8f6f4f7ddd5e7ae9fc28369a0684b8a6140846040826042856141856041845f4185604086604086f9f9f6f9f9f7f9f7f8f5f3f7d7cbe1a791b97f5d966b4485683f84693f816a3e85693f866a4086673f87683f84673f84f9f9f6f9f9f7f9f7f8f6f3f7d8c9dfaa8db6835b94764384713e83723f83723c82733d85723e84713e82703f856f3f85f9f9f6f9f9f7f9f7f8f8f4f8e1d2e4b798bc94629a824788803c827b3c827b3d827a3c827a3c847a3d837c3b827b3b83f9f9f6f9f9f7f9f7f8f9f5f9e7d9e8c1a2c2a46b9f8c4b8a883b82883982873b83833b81843b82833a82823c82813c81f9f9f6f9f8f7faf7f8faf5f9eadceac7a9c7af71a3974d8a903b829038818f3a829138838e39818e39828e39838c3a81f9f9f6f9f9f7faf8f8faf6f9eee0edcfb1ccb67aa9a1518d963c8297377f95387f943881963780953881943881923880f9f9f6f9f9f7faf8f9fbf6f9f1e3efd7b6d0bb80aca8538f9c3e839b37809b377e98377f9a367e9b367e9c357e9b357cf9f9f6f9f9f7faf8f9fbf7f9f4e6f1debcd4c285aeaf5792a44083a23780a1367f9f377e9d357fa13680a2347ea0357df9f9f6f9f9f7fbf9f9fbf7f9f6e8f2e3bfd6c88ab0b55b93ab4183a9377fa8367ea7367ea5347fa63580a63580a5367ef9f9f6f9f9f7fbf9f9fbf8f9f7eaf3e6c3d8cc8eb2ba5f95af4384ad367ead347fad347fac347fac347fa83681a83681f9f9f6f9f9f7fbfaf9fbf9faf7ebf3e9c6dad094b6be6597b34585b0367daf337faf3480af3380af337eaa367dab367cf9f9f6f9f9f7fbfafafcf9faf7edf3ebc7dad597b8c3689ab84686b4367eb2337eb2327eb2327eb3327db2337cb1347bf9f9f6f9f9f7fbfafafcf9faf7eef4ecc8dada98b8c86a9abd4586bb347eb8317db7307cb7307bb8307cb6327db5337bf9f9f6f9f9f7fbfafafdfafbf8eef4eec9dade99b8cc6a9ac14386c1317ebd2f7cbc2e7bba2f7cbb307dbb317eb9327ef9f9f6f9f9f7fbfafafdfafbf8eff4efcadae299b9d06b99c64286c4317ec02e7cc22d7cbc307cbc2f7cbe2f7ebd307df9f9f6f9f9f7fbfafafefafbf9eef4f0cadae49abad36a99cb4287c6317ec32e7cc52c7cc02f7cbf2e7ec02c80c02d7ff9f9f6f9f9f7fbfafafef9fbfaeef3f1cad9e59bbad56999d04086c72f7dc62d7cc72b7bc32e7bc22d7cc32b7fc52c7ef9f9f6f9f9f7fbfaf9fefafbfaeef3f3cbd9e69fbdd66e9cd24287ca2d7cc82b7bc92b7bc62d7ac72c7bc62c7bc72c79f9f9f6f9f9f7fbfaf9fef9fbfaedf2f4cad8e7a0bdd86f9dd24185cd2c7ccc297bca2a7bcd297bcd297aca2b7cc82c7af9f9f6f9f9f7fbfaf9fdf9fbfaedf1f4cad7e8a2bcd9719ed03f82d02a7bcf2679cc277ad0257bcc2679cb2779c82777f9f9f6f9f9f7fbfaf9fdf9faf9edf0f4cad6e9a3badb749ecf3d7fd12879cf2577cc2578cd2479cd2378cf2478cd2477f9f9f6f9f9f7fafaf9fdf9faf9edeff3cbd5e8a3b7dc759ccf3b7dd12876cf2475cb2476ce2279d12178d02377ce2476f9f9f6f9f9f7fafaf8fdf9f9f8edeff3cbd5e7a0b3dc7498d03e7bd22874ce2473cc2374d02278d12177d12276d12375f9f9f6f9f9f7fafaf8fef9f9f9eceef2cbd4e59dafdc7294d14079d42973ce2672ce2473d22476d12375ce2574cd2574f9f9f6f9f9f7fafaf8fef9f9f9ebecf1cad2e59aabdb6c8ed23e77d42b72cf2770d22672d32573d02672cb2771cb2871f9f9f6f9f9f7fafaf8fef9f8f8e8e9f0c7cee495a6da6486d23b73d32b6fcf296ed3276fd42770cf276fd12771d22771f9f9f6f9f9f7fafbf8fef9f8f7e7e7f0c6cce893a3d86381d33a70d22b6ace2969d2286bd4276dd0286cd4276cd2286cf9f9f6f9f9f6fafbf8fef9f7f6e4e4f0c1c7e98d9cd65f7bd33669d02a65ce2a64d22966d12969d02969d12967ce2a66f9f9f6f9f9f6fbfbf8fef9f6f6e2e2f1bdc1e58b96d75873d23562cf2b60ce2b60d12b62cc2b63cf2a64d02a64ce2b64f9f9f6f9f9f6fbfbf7fef8f5f5e0dfefb7b9df868dd9506ad2335dd02c5bcf2c5cd02b5dce2c5ccc2c5fd12b61d02c60f9f9f6f9f9f6fbfaf7fef7f4f4dddbebb2b0dd8085d84b64d13158cf2d56d02a57d22a56d02c55cd2e59d12d5cd12d5cf9f9f6f9f9f6fbfaf6fef6f3f3dbd6e8aea8db787cd3455bce3152cd2d4fcd2d4fd32b4ed02d4ed02d52d32c55d12d56f9f9f6f9f9f6fbf9f6fdf5f2f1d8d0e6a89fd96e70d0404fce3046cd2e46cf2c47d32b46d02c49d22c4ad22d4bd02c4bf9f9f6f9f9f7fbf8f5fcf4f1f0d7cbe5a297d76664cf3a40cf2e3dcd2e40cd2d3fce2c40d12b44cf2c43cd2c42cd2c43f9f9f6f9f9f7fbf8f4faf2edf0d0c2e39688d45d56d03336cf2d38cb2d3acd2c39ce2b39d02b3ccf2b3ad12b3cd02c3ff9f9f6f9f9f7fbf7f4f8efe9f0c6b7e0887ad34d44d02f2fcd2d31d12b33cf2b34d12b33d22c34d22b36d12c36d12c37f9f9f6f9f9f6fbf7f3f7eae1efbaaadc7867d13b32d02d2bce2d2ed02c2ed12c2ed02c30d02c31d02d2ed12e2dce2f2ef9f9f6f9f9f6fbf7f3f8ece3efbdaddf7e68d13d2ecf2c26ce2c2ad12c2ad12c2ad12c27d12d2ad32b2ad12d29d22d2af9f9f6f9f9f6faf7f4faf4edf1cfc0e59b84d6593ed23126d02e28d12c27d22c27d12d26d12d25d02c28ce2d2acc2d2c" };
+const ILLUM = [ ['A',0.4476,0.4075, 1,-1], ['B',0.3485,0.3517, -1,-1], ['C',0.3101,0.3162, -1,1], ['D65',0.3127,0.3290, -1,-1], ['E',0.3333,0.3333, 1,1] ];
+const CCT_TICKS = [2000, 3000, 4000, 10000];
+/* Planckian（黑體）軌跡：Kim et al. 三次式近似，1667 K ～ 25000 K */
+function planckXY(T){
+  const x = T <= 4000 ? (-0.2661239e9/T**3 - 0.2343589e6/T**2 + 0.8776956e3/T + 0.179910)
+                      : (-3.0258469e9/T**3 + 2.1070379e6/T**2 + 0.2226347e3/T + 0.240390);
+  const y = T <= 2222 ? (-1.1063814*x**3 - 1.34811020*x**2 + 2.18555832*x - 0.20219683)
+          : T <= 4000 ? (-0.9549476*x**3 - 1.37418593*x**2 + 2.09137015*x - 0.16748867)
+                      : ( 3.0817580*x**3 - 5.87338670*x**2 + 3.75112997*x - 0.37001483);
+  return [x, y];
+}
+const I18N = {
+  zh:{ t_pt:'CIE 1931 xy 色度圖', t_box:'CIE 1931 xy 色度圖', t_data:'CIE 1931 xy 色度圖', obs:'CIE 1931 2° 標準觀察者',
+       spec:'規格框', meas:n => `量測點（${n}）`, bad:n => `超規點（${n}）`, avg:'平均', srgb:'sRGB 色域', planck:'黑體軌跡', illum:'標準光源' },
+  en:{ t_pt:'CIE 1931 xy Chromaticity Diagram', t_box:'CIE 1931 xy Chromaticity Diagram', t_data:'CIE 1931 xy Chromaticity Diagram', obs:'CIE 1931 2° Standard Observer',
+       spec:'Spec box', meas:n => `Measured (${n})`, bad:n => `Out of spec (${n})`, avg:'Mean', srgb:'sRGB gamut', planck:'Planckian locus', illum:'Illuminant' }
+};
+const PRESETS = [['D65 白點',0.3127,0.3290],['C 光源',0.3101,0.3162],['A 光源',0.4476,0.4074],['E 等能白',0.3333,0.3333],['sRGB 紅',0.64,0.33],['sRGB 綠',0.30,0.60],['sRGB 藍',0.15,0.06]];
+
+function xyzToLin(X, Y, Z){
+  return [ 3.2404542*X - 1.5371385*Y - 0.4985314*Z,
+          -0.9692660*X + 1.8760108*Y + 0.0415560*Z,
+           0.0556434*X - 0.2040259*Y + 1.0572252*Z ];
+}
+const encSrgb = v => { v = Math.min(1, Math.max(0, v)); return v <= 0.0031308 ? 12.92*v : 1.055*Math.pow(v, 1/2.4) - 0.055; };
+/* xy → sRGB：亮度正規化到最亮的一個通道 = 255；超出色域時往 D65 白點方向移到色域邊界（等同加入白光） */
+function xyToRgb(x, y){
+  if (!(y > 0)) return null;
+  let [r, g, b] = xyzToLin(x/y, 1, (1-x-y)/y);
+  const inGamut = Math.min(r, g, b) >= -1e-6;
+  const m = Math.min(r, g, b); if (m < 0){ r -= m; g -= m; b -= m; }
+  const mx = Math.max(r, g, b); if (!(mx > 0)) return null;
+  const R = Math.round(255*encSrgb(r/mx)), G = Math.round(255*encSrgb(g/mx)), B = Math.round(255*encSrgb(b/mx));
+  return { r:R, g:G, b:B, inGamut, hex:'#' + [R,G,B].map(v => v.toString(16).padStart(2,'0')).join('').toUpperCase() };
+}
+function inLocus(x, y){
+  let c = false; const n = LOCUS.length;
+  for (let i = 0, j = n-1; i < n; j = i++){
+    const xi = LOCUS[i][1], yi = LOCUS[i][2], xj = LOCUS[j][1], yj = LOCUS[j][2];
+    if (((yi > y) !== (yj > y)) && (x < (xj-xi)*(y-yi)/(yj-yi) + xi)) c = !c;
+  }
+  return c;
+}
+/* 主波長與色純度（以 D65 為白點） */
+function dominant(x, y){
+  const wx = D65[0], wy = D65[1], dx = x-wx, dy = y-wy;
+  if (Math.hypot(dx, dy) < 1e-5) return null;
+  const n = LOCUS.length;
+  const hit = (ux, uy) => {
+    let best = null;
+    for (let i = 0; i < n; i++){
+      const a = LOCUS[i], b = LOCUS[(i+1) % n], ex = b[1]-a[1], ey = b[2]-a[2];
+      const den = ux*ey - uy*ex; if (Math.abs(den) < 1e-14) continue;
+      const ax = a[1]-wx, ay = a[2]-wy;
+      const t = (ax*ey - ay*ex)/den, s = (ax*uy - ay*ux)/den;
+      if (t > 1e-9 && s >= -1e-9 && s <= 1+1e-9 && (!best || t < best.t)) best = { t, purple: i === n-1, wl: a[0] + s*(b[0]-a[0]) };
+    }
+    return best;
+  };
+  const h = hit(dx, dy); if (!h) return null;
+  if (!h.purple) return { wl:h.wl, comp:false, purity:1/h.t };
+  const h2 = hit(-dx, -dy);
+  return { wl: h2 ? h2.wl : NaN, comp:true, purity:1/h.t };
+}
+function mccamy(x, y){ const n = (x-0.3320)/(0.1858-y); return 449*n**3 + 3525*n**2 + 6823.3*n + 5520.33; }
+function uvp(x, y){ const d = -2*x + 12*y + 3; return [4*x/d, 9*y/d]; }
+function rgbToOfficeHsl(r, g, b){
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r,g,b), mn = Math.min(r,g,b), l = (mx+mn)/2; let h = 0, s = 0;
+  if (mx !== mn){
+    const d = mx - mn; s = l > 0.5 ? d/(2-mx-mn) : d/(mx+mn);
+    h = mx === r ? (g-b)/d + (g < b ? 6 : 0) : mx === g ? (b-r)/d + 2 : (r-g)/d + 4; h /= 6;
+  }
+  return [Math.round(h*255) % 256, Math.round(s*255), Math.round(l*255)];
+}
+
+/* =========================================================================
+ * 繪圖：同一套繪製程式輸出到 Canvas 與 SVG
+ * ========================================================================= */
+const SANS = "'Noto Sans TC','Microsoft JhengHei',sans-serif";
+const MONO = "'JetBrains Mono',Consolas,monospace";
+const fontStr = o => `${o.italic ? 'italic ' : ''}${o.weight || 400} ${o.size}px ${o.mono ? MONO : SANS}`;
+const MCTX = document.createElement('canvas').getContext('2d');
+function measure(s, o){ MCTX.font = fontStr(o); return MCTX.measureText(s).width; }
+
+class CanvasPainter{
+  constructor(ctx){ this.g = ctx; ctx.lineJoin = 'round'; ctx.lineCap = 'butt'; }
+  _stroke(o){ const g = this.g; g.setLineDash(o.dash || []); g.strokeStyle = o.stroke; g.lineWidth = o.lw || 1; g.stroke(); }
+  rect(x, y, w, h, o = {}){ const g = this.g; g.beginPath(); g.rect(x, y, w, h); if (o.fill){ g.fillStyle = o.fill; g.fill(); } if (o.stroke) this._stroke(o); }
+  line(x1, y1, x2, y2, o){ const g = this.g; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); this._stroke(o); }
+  poly(pts, o){ const g = this.g; g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); if (o.closed) g.closePath(); if (o.fill){ g.fillStyle = o.fill; g.fill(); } if (o.stroke) this._stroke(o); }
+  circle(cx, cy, r, o){ const g = this.g; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI*2); if (o.fill){ g.fillStyle = o.fill; g.fill(); } if (o.stroke) this._stroke(o); }
+  text(s, x, y, o){
+    const g = this.g; g.font = fontStr(o); g.textAlign = o.align || 'left'; g.textBaseline = o.base || 'alphabetic'; g.fillStyle = o.color || '#fff';
+    if (o.rot){ g.save(); g.translate(x, y); g.rotate(o.rot*Math.PI/180); g.fillText(s, 0, 0); g.restore(); } else g.fillText(s, x, y);
+  }
+  clipRect(x, y, w, h, fn){ const g = this.g; g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); fn(); g.restore(); }
+  clipPoly(pts, fn){ const g = this.g; g.save(); g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.closePath(); g.clip(); fn(); g.restore(); }
+  image(c, x, y, w, h){ const g = this.g; g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(c, x, y, w, h); }
+}
+const f2 = v => (Math.round(v*100)/100).toString();
+function svgCol(c){
+  const m = /^rgba?\(([^)]+)\)$/.exec(c || ''); if (!m) return [c, 1];
+  const p = m[1].split(',').map(s => s.trim());
+  return [`rgb(${p[0]},${p[1]},${p[2]})`, p[3] !== undefined ? +p[3] : 1];
+}
+class SvgPainter{
+  constructor(W, H){ this.W = W; this.H = H; this.out = []; this.id = 0; }
+  _st(o){
+    let s = '';
+    if (o.fill){ const [c, a] = svgCol(o.fill); s += ` fill="${c}"` + (a < 1 ? ` fill-opacity="${a}"` : ''); } else s += ' fill="none"';
+    if (o.stroke){ const [c, a] = svgCol(o.stroke); s += ` stroke="${c}" stroke-width="${f2(o.lw || 1)}" stroke-linejoin="round"` + (a < 1 ? ` stroke-opacity="${a}"` : ''); }
+    if (o.dash && o.dash.length) s += ` stroke-dasharray="${o.dash.map(f2).join(' ')}"`;
+    return s;
+  }
+  rect(x, y, w, h, o = {}){ this.out.push(`<rect x="${f2(x)}" y="${f2(y)}" width="${f2(w)}" height="${f2(h)}"${this._st(o)}/>`); }
+  line(x1, y1, x2, y2, o){ this.out.push(`<line x1="${f2(x1)}" y1="${f2(y1)}" x2="${f2(x2)}" y2="${f2(y2)}"${this._st(o)}/>`); }
+  poly(pts, o){ this.out.push(`<${o.closed ? 'polygon' : 'polyline'} points="${pts.map(p => f2(p[0]) + ',' + f2(p[1])).join(' ')}"${this._st(o)}/>`); }
+  circle(cx, cy, r, o){ this.out.push(`<circle cx="${f2(cx)}" cy="${f2(cy)}" r="${f2(r)}"${this._st(o)}/>`); }
+  text(s, x, y, o){
+    const sz = o.size; let yy = y;
+    if (o.base === 'middle') yy = y + sz*0.36; else if (o.base === 'top') yy = y + sz*0.84; else if (o.base === 'bottom') yy = y - sz*0.2;
+    const anchor = o.align === 'center' ? 'middle' : o.align === 'right' ? 'end' : 'start';
+    const [c, a] = svgCol(o.color || '#fff');
+    const esc = String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    this.out.push(`<text x="${f2(x)}" y="${f2(yy)}" font-family="${(o.mono ? MONO : SANS).replace(/"/g,"'")}" font-size="${f2(sz)}" font-weight="${o.weight || 400}"${o.italic ? ' font-style="italic"' : ''} text-anchor="${anchor}" fill="${c}"${a < 1 ? ` fill-opacity="${a}"` : ''}${o.rot ? ` transform="rotate(${f2(o.rot)} ${f2(x)} ${f2(y)})"` : ''}>${esc}</text>`);
+  }
+  clipRect(x, y, w, h, fn){ const id = 'clip' + (++this.id); this.out.push(`<clipPath id="${id}"><rect x="${f2(x)}" y="${f2(y)}" width="${f2(w)}" height="${f2(h)}"/></clipPath><g clip-path="url(#${id})">`); fn(); this.out.push('</g>'); }
+  clipPoly(pts, fn){ const id = 'clip' + (++this.id); this.out.push(`<clipPath id="${id}"><polygon points="${pts.map(p => f2(p[0]) + ',' + f2(p[1])).join(' ')}"/></clipPath><g clip-path="url(#${id})">`); fn(); this.out.push('</g>'); }
+  image(c, x, y, w, h){ if (!c._url) c._url = c.toDataURL('image/png'); this.out.push(`<image x="${f2(x)}" y="${f2(y)}" width="${f2(w)}" height="${f2(h)}" preserveAspectRatio="none" href="${c._url}" xlink:href="${c._url}"/>`); }
+  toString(){ return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${this.W}" height="${this.H}" viewBox="0 0 ${this.W} ${this.H}">${this.out.join('')}</svg>`; }
+}
+
+function layoutFor(W, view, fillMax = Infinity){
+  const u = W/1000, L = 100*u, R = 36*u, T = 74*u, B = 92*u;
+  const pw = W - L - R, dx = view.x1 - view.x0, dy = view.y1 - view.y0, ph = pw*dy/dx;
+  return { W, H:Math.round(T + ph + B), u, L, R, T, B, pw, ph, view, dx, dy, fillMax,
+    X: x => L + (x - view.x0)/dx*pw, Y: y => T + ph - (y - view.y0)/dy*ph,
+    ix: px => view.x0 + (px - L)/pw*dx, iy: py => view.y0 + (T + ph - py)/ph*dy };
+}
+/* 色度圖底色：逐像素由 xy 換算 sRGB，再用光譜軌跡裁切 */
+const LUT = (() => { const a = new Uint8ClampedArray(4097); for (let i = 0; i <= 4096; i++) a[i] = Math.round(255*encSrgb(i/4096)); return a; })();
+const fillCache = new Map();
+/* 網路常見樣式：以中心點做極座標，依角度與「到光譜軌跡的相對距離」查色表 */
+let KTAB = null, KRAD = null;
+const KRN = 1440;
+function rayToLocus(cx, cy, ang){
+  const dx = Math.cos(ang), dy = Math.sin(ang), n = LOCUS.length; let best = Infinity;
+  for (let i = 0; i < n; i++){
+    const a = LOCUS[i], b = LOCUS[(i+1) % n], ex = b[1]-a[1], ey = b[2]-a[2], den = dx*ey - dy*ex;
+    if (Math.abs(den) < 1e-14) continue;
+    const wx = a[1]-cx, wy = a[2]-cy, t = (wx*ey - wy*ex)/den, s = (wx*dy - wy*dx)/den;
+    if (t > 0 && s >= -1e-9 && s <= 1+1e-9 && t < best) best = t;
+  }
+  return best;
+}
+function kellyInit(){
+  if (KTAB) return;
+  KTAB = new Uint8Array(KCT.hex.length/2);
+  for (let i = 0; i < KTAB.length; i++) KTAB[i] = parseInt(KCT.hex.substr(i*2, 2), 16);
+  KRAD = new Float64Array(KRN);
+  for (let i = 0; i < KRN; i++) KRAD[i] = rayToLocus(KCT.cx, KCT.cy, 2*Math.PI*i/KRN);
+}
+function kellyColor(x, y, out, k){
+  const dx = x - KCT.cx, dy = y - KCT.cy;
+  let ang = Math.atan2(dy, dx); if (ang < 0) ang += 2*Math.PI;
+  const ri = ang/(2*Math.PI)*KRN, i0 = Math.floor(ri) % KRN, fr = ri - Math.floor(ri);
+  const R = KRAD[i0]*(1-fr) + KRAD[(i0+1) % KRN]*fr;
+  const NA = KCT.na, NT = KCT.nt;
+  const t = Math.min(1, Math.hypot(dx, dy)/R)*(NT-1), a = ang/(2*Math.PI)*NA;
+  const a0 = Math.floor(a) % NA, a1 = (a0+1) % NA, fa = a - Math.floor(a);
+  const t0 = Math.min(NT-1, Math.floor(t)), t1 = Math.min(NT-1, t0+1), ft = t - t0;
+  const w00 = (1-fa)*(1-ft), w10 = fa*(1-ft), w01 = (1-fa)*ft, w11 = fa*ft;
+  const p00 = (a0*NT+t0)*3, p10 = (a1*NT+t0)*3, p01 = (a0*NT+t1)*3, p11 = (a1*NT+t1)*3;
+  for (let c = 0; c < 3; c++) out[k+c] = KTAB[p00+c]*w00 + KTAB[p10+c]*w10 + KTAB[p01+c]*w01 + KTAB[p11+c]*w11;
+}
+function getFill(lay, style){
+  const w = Math.max(1, Math.min(lay.fillMax, Math.ceil(lay.pw))), h = Math.max(1, Math.round(w*lay.ph/lay.pw));
+  const v = lay.view, key = [style, w, h, v.x0, v.x1, v.y0, v.y1].join('|');
+  if (fillCache.has(key)) return fillCache.get(key);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d'), img = g.createImageData(w, h), d = img.data;
+  const dx = v.x1 - v.x0, dy = v.y1 - v.y0;
+  let k = 0;
+  if (style !== 'srgb'){
+    kellyInit();
+    for (let j = 0; j < h; j++){
+      const y = v.y1 - (j + 0.5)/h*dy;
+      for (let i = 0; i < w; i++){ kellyColor(v.x0 + (i + 0.5)/w*dx, y, d, k); d[k+3] = 255; k += 4; }
+    }
+    g.putImageData(img, 0, 0);
+    fillCache.set(key, c);
+    if (fillCache.size > 6) fillCache.delete(fillCache.keys().next().value);
+    return c;
+  }
+  for (let j = 0; j < h; j++){
+    const y = v.y1 - (j + 0.5)/h*dy, yy = y > 1e-4 ? y : 1e-4;
+    for (let i = 0; i < w; i++){
+      const x = v.x0 + (i + 0.5)/w*dx, X = x/yy, Z = (1 - x - y)/yy;
+      let r = 3.2404542*X - 1.5371385 - 0.4985314*Z, gg = -0.9692660*X + 1.8760108 + 0.0415560*Z, b = 0.0556434*X - 0.2040259 + 1.0572252*Z;
+      const m = Math.min(r, gg, b); if (m < 0){ r -= m; gg -= m; b -= m; }
+      const mx = Math.max(r, gg, b) || 1, s = 4096/mx;
+      d[k] = LUT[(r*s) | 0]; d[k+1] = LUT[(gg*s) | 0]; d[k+2] = LUT[(b*s) | 0]; d[k+3] = 255; k += 4;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  fillCache.set(key, c);
+  if (fillCache.size > 6) fillCache.delete(fillCache.keys().next().value);
+  return c;
+}
+function niceStep(raw){ const p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw/p; return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10)*p; }
+function ticks(a, b, s){ const out = []; for (let k = Math.ceil(a/s - 1e-7); k*s <= b + s*1e-7; k++) out.push(+(k*s).toFixed(10)); return out; }
+const f4 = v => (v === null || v === undefined || !isFinite(v)) ? '—' : (+v).toFixed(4);
+
+/* o: { titleKey, lang, style, showWl, showSrgb, showIllum, showKelly, showNames, showPlanck, legend, point, rect, pts, avg } */
+function renderDiagram(P, lay, o){
+  const Lx = I18N[o.lang] || I18N.zh;
+  const { u, L, T, pw, ph, W, H, view } = lay, X = lay.X, Y = lay.Y;
+  const inView = (x, y, m = 0) => x >= view.x0 - m && x <= view.x1 + m && y >= view.y0 - m && y <= view.y1 + m;
+  P.rect(0, 0, W, H, { fill:'#000' });
+  const maj = niceStep(lay.dx/8), lead = Math.round(maj/Math.pow(10, Math.floor(Math.log10(maj) + 1e-9)));
+  const minr = maj/(lead === 2 ? 4 : 5), dec = Math.max(1, Math.ceil(-Math.log10(maj) - 1e-9));
+  const grid = (cMin, cMaj) => {
+    for (const v of ticks(view.x0, view.x1, minr)) P.line(X(v), T, X(v), T+ph, { stroke:cMin, lw:0.9*u });
+    for (const v of ticks(view.y0, view.y1, minr)) P.line(L, Y(v), L+pw, Y(v), { stroke:cMin, lw:0.9*u });
+    for (const v of ticks(view.x0, view.x1, maj)) P.line(X(v), T, X(v), T+ph, { stroke:cMaj, lw:1.3*u });
+    for (const v of ticks(view.y0, view.y1, maj)) P.line(L, Y(v), L+pw, Y(v), { stroke:cMaj, lw:1.3*u });
+  };
+  const lp = LOCUS.map(p => [X(p[1]), Y(p[2])]);
+
+  P.clipRect(L, T, pw, ph, () => {
+    grid('rgba(255,255,255,0.08)', 'rgba(255,255,255,0.26)');
+    P.clipPoly(lp, () => {
+      P.image(getFill(lay, o.style), L, T, pw, ph);
+      grid('rgba(0,0,0,0.07)', 'rgba(0,0,0,0.18)');
+      if (o.showKelly){
+        for (const [k, pts] of Object.entries(KELLY.lines))
+          P.poly(pts.map(p => [X(p[0]), Y(p[1])]), { closed: k === 'white', stroke:'rgba(0,0,0,0.72)', lw:1.3*u });
+      }
+    });
+    // 色區名稱
+    if (o.showNames){
+      for (const [en, zh, lx, ly, rot] of KELLY.labels){
+        if (!inView(lx, ly)) continue;
+        const fo = { size:(o.lang === 'en' ? 14.5 : 16.5)*u, weight:500, color:'rgba(0,0,0,0.74)', align:'center', base:'middle', rot };
+        if (o.lang === 'en' && !rot && en.includes(' ')){
+          const [a, b] = [en.slice(0, en.indexOf(' ')), en.slice(en.indexOf(' ') + 1)];
+          P.text(a, X(lx), Y(ly) - fo.size*0.58, fo); P.text(b, X(lx), Y(ly) + fo.size*0.58, fo);
+        } else P.text(o.lang === 'en' ? en : zh, X(lx), Y(ly), fo);
+      }
+    }
+    P.poly(lp, { closed:true, stroke:'rgba(255,255,255,0.9)', lw:1.7*u });
+
+    if (o.showSrgb){
+      const tp = SRGB_TRI.map(p => [X(p[0]), Y(p[1])]);
+      P.poly(tp, { closed:true, stroke:'rgba(0,0,0,0.55)', lw:3.4*u });
+      P.poly(tp, { closed:true, stroke:'rgba(255,255,255,0.95)', lw:1.5*u, dash:[7*u, 5*u] });
+    }
+    // 黑體軌跡
+    if (o.showPlanck){
+      const pp = []; for (let i = 0; i <= 160; i++){ const T = 1667*Math.pow(25000/1667, i/160); const q = planckXY(T); pp.push([X(q[0]), Y(q[1])]); }
+      P.poly(pp, { stroke:'rgba(255,255,255,0.55)', lw:3.6*u });
+      P.poly(pp, { stroke:'#111', lw:1.6*u });
+      for (const T of CCT_TICKS){
+        const q = planckXY(T), q2 = planckXY(T*1.02); if (!inView(q[0], q[1])) continue;
+        let tx = X(q2[0]) - X(q[0]), ty = Y(q2[1]) - Y(q[1]); const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+        let nx = -ty, ny = tx; if (ny < 0){ nx = -nx; ny = -ny; }
+        const px = X(q[0]), py = Y(q[1]);
+        P.line(px - nx*6*u, py - ny*6*u, px + nx*6*u, py + ny*6*u, { stroke:'#111', lw:1.5*u });
+        P.text(T + 'K', px + nx*10*u, py + ny*10*u, { size:12.5*u, mono:true, weight:700, color:'rgba(0,0,0,0.8)', align: nx > 0.3 ? 'left' : 'center', base:'top' });
+      }
+    }
+    // 標準光源
+    if (o.showIllum){
+      for (const [n, ix, iy, sx, sy] of ILLUM){
+        if (!inView(ix, iy)) continue;
+        P.circle(X(ix), Y(iy), 4.6*u, { fill:'#111', stroke:'#fff', lw:1.3*u });
+        P.text(n, X(ix) + sx*8*u, Y(iy) + sy*8*u, { size:14*u, weight:700, color:'#000', mono:true, align: sx > 0 ? 'left' : 'right', base: sy > 0 ? 'top' : 'bottom' });
+      }
+    }
+    // 規格框
+    if (o.rect){
+      const r = o.rect, rx = X(r.x0), ry = Y(r.y1), rw = X(r.x1) - rx, rh = Y(r.y0) - ry;
+      P.rect(rx, ry, rw, rh, { stroke:'#000', lw:(r.lw + 2.6)*u });
+      P.rect(rx, ry, rw, rh, { stroke:r.color, lw:r.lw*u });
+      if (Math.max(rw, rh) < 16*u){   // 框太小時再加一個圈標示位置
+        P.circle(rx + rw/2, ry + rh/2, 22*u, { stroke:'#000', lw:4.2*u });
+        P.circle(rx + rw/2, ry + rh/2, 22*u, { stroke:r.color, lw:2*u, dash:[6*u, 4*u] });
+      }
+    }
+    // 量測點
+    if (o.pts) for (const p of o.pts){
+      if (!inView(p.x, p.y, lay.dx*0.02)) continue;
+      if (p.bad) P.circle(X(p.x), Y(p.y), 5.2*u, { fill:'#ff3b30', stroke:'#fff', lw:1.4*u });
+      else P.circle(X(p.x), Y(p.y), 4.6*u, { fill:'#ffffff', stroke:'#000', lw:1.4*u });
+    }
+    if (o.avg){
+      const ax = X(o.avg.x), ay = Y(o.avg.y), s = 9*u;
+      P.poly([[ax, ay-s], [ax+s, ay], [ax, ay+s], [ax-s, ay]], { closed:true, fill: o.avg.bad ? '#ff3b30' : '#ffd60a', stroke:'#000', lw:2*u });
+    }
+    // 單一色點：十字虛線、色框、說明框
+    if (o.point){
+      const { x, y, hex } = o.point, px = X(x), py = Y(y), s = 20*u;
+      P.line(px, py, px, T+ph, { stroke:'rgba(255,255,255,0.6)', lw:1.3*u, dash:[6*u, 5*u] });
+      P.line(L, py, px, py, { stroke:'rgba(255,255,255,0.6)', lw:1.3*u, dash:[6*u, 5*u] });
+      P.rect(px-s, py-s, 2*s, 2*s, { stroke:'#000', lw:6.5*u });
+      P.rect(px-s, py-s, 2*s, 2*s, { stroke:hex, lw:3.2*u });
+      P.circle(px, py, 6.5*u, { fill:hex, stroke:'#fff', lw:2*u });
+      P.circle(px, py, 8.5*u, { stroke:'#000', lw:1.4*u });
+      const l1 = `x ${f4(x)}   y ${f4(y)}`, l2 = `${hex}  RGB(${o.point.r},${o.point.g},${o.point.b})`;
+      const fo = { size:18*u, mono:true, weight:700 };
+      const bw = Math.max(measure(l1, fo), measure(l2, fo)) + 62*u, bh = 64*u;
+      let bx = px + s + 14*u, by = py - s - bh - 6*u;
+      if (bx + bw > L + pw - 6*u) bx = px - s - 14*u - bw;
+      if (by < T + 6*u) by = py + s + 10*u;
+      if (bx < L + 6*u) bx = L + 6*u;
+      P.rect(bx, by, bw, bh, { fill:'rgba(0,0,0,0.82)', stroke:hex, lw:3*u });
+      P.rect(bx + 12*u, by + 14*u, 26*u, bh - 28*u, { fill:hex, stroke:'rgba(255,255,255,0.7)', lw:1*u });
+      P.text(l1, bx + 48*u, by + 22*u, { ...fo, color:'#fff', base:'middle' });
+      P.text(l2, bx + 48*u, by + 44*u, { ...fo, color:'rgba(255,255,255,0.8)', base:'middle', weight:400 });
+    }
+    // 圖例
+    if (o.legend){
+      const items = [];
+      if (o.rect){ items.push({ t:'rect', c:o.rect.color, s:Lx.spec }, { s:`x: ${f4(o.rect.x0)} ~ ${f4(o.rect.x1)}` }, { s:`y: ${f4(o.rect.y0)} ~ ${f4(o.rect.y1)}` }); }
+      if (o.pts && o.pts.length){
+        const nb = o.pts.filter(p => p.bad).length;
+        items.push({ t:'dot', c:'#fff', s:Lx.meas(o.pts.length - nb) });
+        if (nb) items.push({ t:'dot', c:'#ff3b30', s:Lx.bad(nb) });
+      }
+      if (o.avg) items.push({ t:'avg', c:o.avg.bad ? '#ff3b30' : '#ffd60a', s:`${Lx.avg} ${f4(o.avg.x)}, ${f4(o.avg.y)}` });
+      if (o.showSrgb) items.push({ t:'dash', c:'#fff', s:Lx.srgb });
+      if (o.showPlanck) items.push({ t:'line', c:'#fff', s:Lx.planck });
+      if (o.showIllum) for (const [n, ix, iy] of ILLUM) if (inView(ix, iy)) items.push({ t:'ill', c:'#fff', s:`${n.padEnd(3)} ${ix.toFixed(4)}, ${iy.toFixed(4)}` });
+      if (items.length){
+        const fo = { size:16.5*u, mono:true }, lh = 25*u;
+        const bw = Math.max(...items.map(it => measure(it.s, fo))) + (items.some(it => it.t) ? 50 : 26)*u, bh = items.length*lh + 14*u;
+        const bx = L + pw - 12*u - bw, by = T + 12*u;
+        P.rect(bx, by, bw, bh, { fill:'rgba(0,0,0,0.76)', stroke:'rgba(255,255,255,0.35)', lw:1*u });
+        items.forEach((it, i) => {
+          const cy = by + 7*u + lh*(i + 0.5), sx = bx + 22*u;
+          if (it.t === 'rect') P.rect(sx - 9*u, cy - 7*u, 18*u, 14*u, { stroke:it.c, lw:2.6*u });
+          if (it.t === 'dot') P.circle(sx, cy, 5*u, { fill:it.c, stroke: it.c === '#fff' ? '#000' : '#fff', lw:1.3*u });
+          if (it.t === 'avg') P.poly([[sx, cy-8*u], [sx+8*u, cy], [sx, cy+8*u], [sx-8*u, cy]], { closed:true, fill:it.c, stroke:'#000', lw:1.6*u });
+          if (it.t === 'dash') P.line(sx - 10*u, cy, sx + 10*u, cy, { stroke:it.c, lw:1.6*u, dash:[5*u, 3*u] });
+          if (it.t === 'line') P.line(sx - 10*u, cy, sx + 10*u, cy, { stroke:it.c, lw:2*u });
+          if (it.t === 'ill') P.circle(sx, cy, 4*u, { fill:'#111', stroke:'#fff', lw:1.3*u });
+          P.text(it.s, bx + (items.some(x => x.t) ? 40 : 14)*u, cy, { ...fo, color: it.t ? '#fff' : 'rgba(255,255,255,0.78)', base:'middle' });
+        });
+      }
+    }
+  });
+
+  // 波長標示（畫在裁切範圍外，靠近邊界的標籤才不會被切掉）
+  if (o.showWl){
+    const cx = X(0.333), cy = Y(0.333);
+    for (const wl of WL_LABELS){
+      const i = LOCUS.findIndex(p => p[0] === wl); if (i < 0) continue;
+      const p = LOCUS[i]; if (!inView(p[1], p[2], lay.dx*0.05)) continue;
+      const a = LOCUS[Math.max(0, i-1)], b = LOCUS[Math.min(LOCUS.length-1, i+1)];
+      const px = X(p[1]), py = Y(p[2]);
+      let nx = Y(b[2]) - Y(a[2]), ny = -(X(b[1]) - X(a[1]));
+      let len = Math.hypot(nx, ny);
+      if (len < 1e-6 || wl === 700){ nx = px - cx; ny = py - cy; len = Math.hypot(nx, ny); }
+      nx /= len; ny /= len;
+      if (nx*(px-cx) + ny*(py-cy) < 0){ nx = -nx; ny = -ny; }
+      P.line(px, py, px + nx*10*u, py + ny*10*u, { stroke:'rgba(255,255,255,0.85)', lw:1.4*u });
+      const lx = px + nx*16*u, ly = py + ny*16*u;
+      P.text(String(wl), lx, ly, { size:16*u, color:'rgba(255,255,255,0.85)', mono:true, align: nx > 0.35 ? 'left' : nx < -0.35 ? 'right' : 'center', base: ny > 0.35 ? 'top' : ny < -0.35 ? 'bottom' : 'middle' });
+    }
+    if (inView(0.33, 0.06)) P.text('nm', X(0.30), Y(0.03), { size:15*u, color:'rgba(255,255,255,0.5)', italic:true, align:'center', base:'middle' });
+  }
+  // 外框、刻度、座標文字
+  P.rect(L, T, pw, ph, { stroke:'rgba(255,255,255,0.8)', lw:1.5*u });
+  for (const v of ticks(view.x0, view.x1, minr)) P.line(X(v), T+ph, X(v), T+ph + 5*u, { stroke:'rgba(255,255,255,0.55)', lw:1*u });
+  for (const v of ticks(view.y0, view.y1, minr)) P.line(L - 5*u, Y(v), L, Y(v), { stroke:'rgba(255,255,255,0.55)', lw:1*u });
+  for (const v of ticks(view.x0, view.x1, maj)){
+    P.line(X(v), T+ph, X(v), T+ph + 10*u, { stroke:'#fff', lw:1.4*u });
+    P.text(v.toFixed(dec), X(v), T+ph + 16*u, { size:20*u, mono:true, color:'#e8ecf4', align:'center', base:'top' });
+  }
+  for (const v of ticks(view.y0, view.y1, maj)){
+    P.line(L - 10*u, Y(v), L, Y(v), { stroke:'#fff', lw:1.4*u });
+    P.text(v.toFixed(dec), L - 15*u, Y(v), { size:20*u, mono:true, color:'#e8ecf4', align:'right', base:'middle' });
+  }
+  P.text('x', L + pw/2, H - 20*u, { size:32*u, italic:true, weight:700, color:'#fff', align:'center', base:'bottom' });
+  P.text('y', 24*u, T + ph/2, { size:32*u, italic:true, weight:700, color:'#fff', align:'center', base:'middle' });
+  const tt = Lx[o.titleKey] || Lx.t_pt, tfo = { size:27*u, weight:700, color:'#fff', base:'bottom' }, ofo = { size:16*u, color:'rgba(255,255,255,0.55)', align:'right', base:'bottom' };
+  P.text(tt, L, T - 26*u, tfo);
+  // 右上角說明文字：放不下就不畫，避免和標題重疊
+  if (measure(tt, tfo) + measure(Lx.obs, ofo) + 30*u < pw) P.text(Lx.obs, L + pw, T - 28*u, ofo);
+}
+
+/* =========================================================================
+ * 狀態
+ * ========================================================================= */
+const $ = id => document.getElementById(id);
+const S = {
+  pt:{ x:0.3127, y:0.3290 },
+  spec:{ x0:0.3000, x1:0.3200, y0:0.3100, y1:0.3400 },
+  rect:{ color:'#ff2d55', lw:3 },
+  view:{ mode:'full', pad:2.5, x0:0.25, x1:0.40, y0:0.25, y1:0.40 },
+  view3:{ mode:'zoom', pad:2.5, x0:0.25, x1:0.40, y0:0.25, y1:0.40 },
+  disp:{ wl:true, kelly:true, names:true, planck:true, illum:true, srgb:false, legend:true, style:'kelly', lang:'zh' },
+  imgFmt:'png', imgFmt3:'png'
+};
+const D = { grid:null, source:'', wb:null, sheet:'', hdr:-1, start:0, cx:-1, cy:-1, cid:-1, rows:[], filter:'all' };
+try{ const s = JSON.parse(localStorage.getItem('cieTool.v1') || 'null'); if (s) for (const k of Object.keys(S)) if (s[k] !== undefined) S[k] = (typeof S[k] === 'object' && S[k]) ? { ...S[k], ...s[k] } : s[k]; }catch(e){}
+function save(){ try{ localStorage.setItem('cieTool.v1', JSON.stringify(S)); }catch(e){} }
+
+function toast(type, title, msg){
+  const el = document.createElement('div'); el.className = 'toast ' + type;
+  el.innerHTML = `<b>${esc(title)}</b>${esc(msg || '')}`;
+  $('toastHost').appendChild(el);
+  setTimeout(() => { el.style.transition = 'opacity .3s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 320); }, type === 'error' ? 6000 : 3200);
+}
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); }
+function download(blob, name){
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+}
+const pad2 = n => String(n).padStart(2, '0');
+const today = () => { const d = new Date(); return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}`; };
+
+/* 主題 */
+function applyTheme(t){ document.documentElement.dataset.theme = t; document.querySelectorAll('[data-theme-btn]').forEach(b => b.classList.toggle('active', b.dataset.themeBtn === t)); try{ localStorage.setItem('cieTool.theme', t); }catch(e){} }
+function applyStyle(s){ document.documentElement.dataset.style = s; document.querySelectorAll('[data-style-btn]').forEach(b => b.classList.toggle('active', b.dataset.styleBtn === s)); try{ localStorage.setItem('cieTool.style', s); }catch(e){} }
+(() => { let t = 'light', s = 'solid'; try{ t = localStorage.getItem('cieTool.theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); s = localStorage.getItem('cieTool.style') || 'solid'; }catch(e){} applyTheme(t); applyStyle(s); })();
+$('themeToggle').addEventListener('click', e => { const b = e.target.closest('[data-theme-btn]'); if (b) applyTheme(b.dataset.themeBtn); });
+$('styleToggle').addEventListener('click', e => { const b = e.target.closest('[data-style-btn]'); if (b) applyStyle(b.dataset.styleBtn); });
+
+/* 分頁 */
+let cur = 'pt';
+function switchTab(t){
+  cur = t;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + t));
+  if (t === 'data') renderData();
+  schedule();
+}
+document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+/* 顯示選項（三頁共用） */
+const TOGGLES = [['kelly','色區分界線'],['names','色區名稱'],['planck','黑體軌跡'],['illum','標準光源'],['wl','波長'],['srgb','sRGB 色域'],['legend','圖例']];
+document.querySelectorAll('[data-toggles]').forEach(box => {
+  box.innerHTML =
+    `<span class="lbl">色彩</span><select class="mini" data-disp-sel="style"><option value="kelly">網路常見樣式</option><option value="srgb">精準 sRGB</option></select>` +
+    `<span class="lbl">圖面文字</span><select class="mini" data-disp-sel="lang"><option value="zh">中文</option><option value="en">English</option></select><span class="sep"></span>` +
+    TOGGLES.map(([k, l]) => `<label><input type="checkbox" data-disp="${k}">${l}</label>`).join('');
+});
+function syncToggles(){
+  document.querySelectorAll('[data-disp]').forEach(el => { el.checked = !!S.disp[el.dataset.disp]; });
+  document.querySelectorAll('[data-disp-sel]').forEach(el => { el.value = S.disp[el.dataset.dispSel]; });
+}
+document.addEventListener('change', e => {
+  const el = e.target.closest('[data-disp]'), sel = e.target.closest('[data-disp-sel]');
+  if (el) S.disp[el.dataset.disp] = el.checked;
+  else if (sel) S.disp[sel.dataset.dispSel] = sel.value;
+  else return;
+  syncToggles(); save(); schedule();
+});
+
+/* =========================================================================
+ * 畫面上的色度圖
+ * ========================================================================= */
+function specValid(){ const s = S.spec; return [s.x0, s.x1, s.y0, s.y1].every(v => typeof v === 'number' && isFinite(v)) && s.x0 < s.x1 && s.y0 < s.y1; }
+function viewFor(v, withPts){
+  if (v.mode === 'custom'){
+    if ([v.x0, v.x1, v.y0, v.y1].every(isFinite) && v.x1 > v.x0 && v.y1 > v.y0 && (v.y1-v.y0)/(v.x1-v.x0) < 3 && (v.y1-v.y0)/(v.x1-v.x0) > 0.33) return { x0:v.x0, x1:v.x1, y0:v.y0, y1:v.y1 };
+    return FULL_VIEW;
+  }
+  if (v.mode !== 'zoom') return FULL_VIEW;
+  let b = null, span = 0;
+  if (specValid()){ b = { ...S.spec }; span = Math.max(b.x1 - b.x0, b.y1 - b.y0, 0.001)*Math.max(1.05, +v.pad || 2.5); }
+  if (withPts && D.rows.length){
+    const xs = D.rows.map(r => r.x), ys = D.rows.map(r => r.y);
+    const pb = { x0:Math.min(...xs), x1:Math.max(...xs), y0:Math.min(...ys), y1:Math.max(...ys) };
+    b = b ? { x0:Math.min(b.x0, pb.x0), x1:Math.max(b.x1, pb.x1), y0:Math.min(b.y0, pb.y0), y1:Math.max(b.y1, pb.y1) } : pb;
+    span = Math.max(span, Math.max(b.x1 - b.x0, b.y1 - b.y0, 0.001)*1.25);
+  }
+  if (!b) return FULL_VIEW;
+  const cx = (b.x0 + b.x1)/2, cy = (b.y0 + b.y1)/2;
+  return { x0:cx - span/2, x1:cx + span/2, y0:cy - span/2, y1:cy + span/2 };
+}
+function baseOpts(){ const d = S.disp; return { showWl:d.wl, showSrgb:d.srgb, showIllum:d.illum, showKelly:d.kelly, showNames:d.names, showPlanck:d.planck, legend:d.legend, style:d.style, lang:d.lang }; }
+function rectOpt(){ return specValid() ? { ...S.spec, color:S.rect.color, lw:+S.rect.lw } : null; }
+function optsPt(){
+  const c = xyToRgb(S.pt.x, S.pt.y);
+  return { ...baseOpts(), titleKey:'t_pt', point: c ? { x:S.pt.x, y:S.pt.y, hex:c.hex, r:c.r, g:c.g, b:c.b } : null };
+}
+function optsBox(){ return { ...baseOpts(), titleKey:'t_box', rect:rectOpt() }; }
+function optsData(){
+  const st = stats();
+  return { ...baseOpts(), titleKey:'t_data', rect:rectOpt(),
+    pts: D.rows.map(r => ({ x:r.x, y:r.y, bad:r.bx || r.by })), avg: st ? { x:st.ax, y:st.ay, bad:st.abx || st.aby } : null };
+}
+function drawTo(canvas, view, opts){
+  const wrap = canvas.parentElement, cssW = wrap.clientWidth; if (!cssW) return;
+  const dpr = Math.min(3, window.devicePixelRatio || 1), W = Math.round(cssW*dpr);
+  const lay = layoutFor(W, view);
+  canvas.width = W; canvas.height = lay.H; canvas.style.height = (lay.H/dpr) + 'px';
+  renderDiagram(new CanvasPainter(canvas.getContext('2d')), lay, opts);
+  canvas._lay = lay; canvas._dpr = dpr;
+}
+let raf = 0;
+function schedule(){ if (raf) return; raf = requestAnimationFrame(() => { raf = 0; renderCurrent(); }); }
+function renderCurrent(){
+  if (cur === 'pt') drawTo($('cv1'), FULL_VIEW, optsPt());
+  else if (cur === 'box') drawTo($('cv2'), viewFor(S.view, false), optsBox());
+  else drawTo($('cv3'), viewFor(S.view3, true), optsData());
+}
+new ResizeObserver(() => schedule()).observe(document.querySelector('.app-shell'));
+/* 滑鼠座標讀值 */
+for (const id of ['cv1', 'cv2', 'cv3']){
+  const cv = $(id), ro = cv.parentElement.querySelector('.readout');
+  const at = e => { const lay = cv._lay; if (!lay) return null; const r = cv.getBoundingClientRect(); const px = (e.clientX - r.left)*cv._dpr, py = (e.clientY - r.top)*cv._dpr; if (px < lay.L || px > lay.L + lay.pw || py < lay.T || py > lay.T + lay.ph) return null; return [lay.ix(px), lay.iy(py)]; };
+  cv.addEventListener('mousemove', e => { const p = at(e); if (!p){ ro.classList.remove('show'); return; } const dec = cv._lay.dx < 0.08 ? 5 : 4; ro.textContent = `x ${p[0].toFixed(dec)}   y ${p[1].toFixed(dec)}`; ro.classList.add('show'); });
+  cv.addEventListener('mouseleave', () => ro.classList.remove('show'));
+  if (id === 'cv1') cv.addEventListener('click', e => { const p = at(e); if (!p) return; $('ptX').value = p[0].toFixed(4); $('ptY').value = p[1].toFixed(4); updatePt(); });
+}
+
+/* =========================================================================
+ * 第一頁：色點查詢
+ * ========================================================================= */
+$('ptChips').innerHTML = PRESETS.map(([n, x, y]) => { const c = xyToRgb(x, y); return `<button type="button" class="chip" data-x="${x}" data-y="${y}"><i style="background:${c.hex}"></i>${n}</button>`; }).join('');
+$('ptChips').addEventListener('click', e => { const b = e.target.closest('[data-x]'); if (!b) return; $('ptX').value = (+b.dataset.x).toFixed(4); $('ptY').value = (+b.dataset.y).toFixed(4); updatePt(); });
+function updatePt(){
+  const x = parseFloat($('ptX').value), y = parseFloat($('ptY').value);
+  const okX = isFinite(x) && x >= 0 && x <= 1, okY = isFinite(y) && y > 0 && y <= 1 && (!isFinite(x) || x + y <= 1);
+  $('ptX').classList.toggle('err', !okX); $('ptY').classList.toggle('err', !okY);
+  if (!okX || !okY){ $('ptAlert').innerHTML = '<div class="alert bad">請輸入 0～1 之間的 x、y，且 y &gt; 0、x + y ≤ 1。</div>'; return; }
+  S.pt = { x, y }; save();
+  const c = xyToRgb(x, y), inside = inLocus(x, y);
+  const lum = 0.299*c.r + 0.587*c.g + 0.114*c.b, fg = lum > 150 ? '#1b1b1b' : '#ffffff';
+  const sw = $('ptSwatch'); sw.style.background = c.hex; sw.style.color = fg;
+  $('ptHexBig').textContent = c.hex; $('ptSwSub').textContent = `x ${f4(x)}  ·  y ${f4(y)}`;
+  const fr = $('ptFrame'); fr.style.borderColor = c.hex; fr.style.boxShadow = `0 0 0 1px rgba(0,0,0,.18), 0 8px 26px ${c.hex}55`;
+  $('vHex').textContent = c.hex;
+  $('vRgb').textContent = `${c.r}, ${c.g}, ${c.b}`;
+  $('vR').textContent = c.r; $('vG').textContent = c.g; $('vB').textContent = c.b;
+  const [h, s, l] = rgbToOfficeHsl(c.r, c.g, c.b);
+  $('vHsl').textContent = `色調 ${h}　飽和度 ${s}　亮度 ${l}`;
+  $('vVba').textContent = `RGB(${c.r}, ${c.g}, ${c.b})`;
+  $('vLong').textContent = String(c.r + c.g*256 + c.b*65536);
+  const [u, v] = uvp(x, y); $('vUv').textContent = `u′ ${u.toFixed(4)}　v′ ${v.toFixed(4)}`;
+  const dm = dominant(x, y);
+  if (!dm){ $('vWl').textContent = '白點（無主波長）'; $('vPur').textContent = '0 %'; }
+  else {
+    $('vWl').textContent = dm.comp ? (isFinite(dm.wl) ? `互補波長 ${dm.wl.toFixed(1)} nm（紫紅色區）` : '紫紅色區') : `${dm.wl.toFixed(1)} nm`;
+    $('vPur').textContent = `${(dm.purity*100).toFixed(1)} %`;
+  }
+  const cct = mccamy(x, y);
+  $('vCct').textContent = (x > 0.24 && x < 0.56 && y > 0.22 && y < 0.46 && cct > 1500 && cct < 30000) ? `約 ${Math.round(cct)} K（McCamy 近似）` : '—（只適用接近白色的色點）';
+  $('vGamut').innerHTML = c.inGamut ? '<span style="color:var(--good)">在色域內</span>' : '<span style="color:var(--warn)">超出 sRGB 色域</span>';
+  let al = '';
+  if (!inside) al += '<div class="alert bad">這個座標在光譜軌跡外面，不是實際可見的色度，請確認數值。</div>';
+  else if (!c.inGamut) al += '<div class="alert warn">這個色點比螢幕（sRGB）能顯示的還要飽和，色碼是往 D65 白點方向移到色域邊界後最接近的可顯示顏色。</div>';
+  $('ptAlert').innerHTML = al;
+  schedule();
+}
+['ptX', 'ptY'].forEach(id => $(id).addEventListener('input', updatePt));
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-copy]'); if (!b) return;
+  const t = $(b.dataset.copy).textContent;
+  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('success', '已複製', t)).catch(() => toast('error', '無法複製', '請手動選取文字'));
+});
+
+/* =========================================================================
+ * 第二頁：規格框與輸出圖片
+ * ========================================================================= */
+const SPEC_IDS = { spX0:'x0', spX1:'x1', spY0:'y0', spY1:'y1' };
+function readSpec(){
+  for (const [id, k] of Object.entries(SPEC_IDS)){ const v = parseFloat($(id).value); S.spec[k] = isFinite(v) ? v : NaN; }
+  const ok = specValid();
+  $('spX0').classList.toggle('err', !(S.spec.x0 < S.spec.x1)); $('spX1').classList.toggle('err', !(S.spec.x0 < S.spec.x1));
+  $('spY0').classList.toggle('err', !(S.spec.y0 < S.spec.y1)); $('spY1').classList.toggle('err', !(S.spec.y0 < S.spec.y1));
+  let h = '';
+  if (ok){
+    const s = S.spec, cx = (s.x0+s.x1)/2, cy = (s.y0+s.y1)/2, c = xyToRgb(cx, cy);
+    h = `<div class="alert info">中心 <b>(${f4(cx)}, ${f4(cy)})</b>　寬 Δx ${f4(s.x1-s.x0)}　高 Δy ${f4(s.y1-s.y0)}　中心色 <span class="sw" style="background:${c ? c.hex : '#000'}"></span> ${c ? c.hex : ''}</div>`;
+  } else h = '<div class="alert bad">上下限不完整，或下限不小於上限。</div>';
+  $('specInfo').innerHTML = h;
+  $('boxSub').textContent = ok ? `x ${f4(S.spec.x0)} ~ ${f4(S.spec.x1)}　·　y ${f4(S.spec.y0)} ~ ${f4(S.spec.y1)}` : '尚未設定規格框';
+  save(); schedule();
+  if (D.rows.length){ judgeRows(); }
+}
+Object.keys(SPEC_IDS).forEach(id => $(id).addEventListener('input', readSpec));
+$('rcColor').addEventListener('input', () => { S.rect.color = $('rcColor').value; $('rcColorTxt').textContent = S.rect.color.toUpperCase(); save(); schedule(); });
+$('rcLw').addEventListener('change', () => { S.rect.lw = +$('rcLw').value; save(); schedule(); });
+/* 顯示範圍控制（第二頁 S.view、第三頁 S.view3 各自獨立） */
+const VIEWCTL = [{ key:'view', sfx:'', pts:false }, { key:'view3', sfx:'3', pts:true }];
+function syncView(c){
+  const v = S[c.key];
+  document.querySelectorAll(`#viewMode${c.sfx} [data-v]`).forEach(b => b.classList.toggle('active', b.dataset.v === v.mode));
+  $('zoomOpts' + c.sfx).style.display = v.mode === 'zoom' ? '' : 'none';
+  $('customOpts' + c.sfx).style.display = v.mode === 'custom' ? '' : 'none';
+  $('vwPad' + c.sfx).value = String(v.pad);
+  for (const k of ['x0','x1','y0','y1']) $('vw' + k.toUpperCase() + c.sfx).value = isFinite(v[k]) ? v[k] : '';
+}
+for (const c of VIEWCTL){
+  $('viewMode' + c.sfx).addEventListener('click', e => {
+    const b = e.target.closest('[data-v]'); if (!b) return; const v = S[c.key];
+    if (b.dataset.v === 'custom' && v.mode !== 'custom'){
+      const r = viewFor(v, c.pts); Object.assign(v, { x0:+r.x0.toFixed(3), x1:+r.x1.toFixed(3), y0:+r.y0.toFixed(3), y1:+r.y1.toFixed(3) });
+    }
+    v.mode = b.dataset.v; syncView(c); save(); schedule();
+  });
+  $('vwPad' + c.sfx).addEventListener('change', () => { S[c.key].pad = +$('vwPad' + c.sfx).value; save(); schedule(); });
+  for (const k of ['x0','x1','y0','y1']){
+    const id = 'vw' + k.toUpperCase() + c.sfx;
+    $(id).addEventListener('input', () => { S[c.key][k] = parseFloat($(id).value); save(); schedule(); });
+  }
+}
+function segSetup(id, key){
+  const box = $(id);
+  const sync = () => box.querySelectorAll('[data-f]').forEach(b => b.classList.toggle('active', b.dataset.f === S[key]));
+  box.addEventListener('click', e => { const b = e.target.closest('[data-f]'); if (!b) return; S[key] = b.dataset.f; sync(); save(); imgHint(); });
+  sync();
+}
+function imgHint(){
+  const m = { png:'PNG：無損，適合放報告、簡報。', jpg:'JPG：檔案較小，品質 95%。', svg:'SVG：格線、文字、框線、分區線為向量，可無限放大；色彩底圖為內嵌的高解析點陣圖。' };
+  $('imgHint').textContent = m[S.imgFmt]; $('imgHint3').textContent = m[S.imgFmt3];
+}
+segSetup('imgFmt', 'imgFmt'); segSetup('imgFmt3', 'imgFmt3');
+
+async function makeImage(fmt, width, view, opts){
+  if (fmt === 'svg'){
+    const lay = layoutFor(width, view, 2200), P = new SvgPainter(lay.W, lay.H);
+    renderDiagram(P, lay, opts);
+    return new Blob([P.toString()], { type:'image/svg+xml' });
+  }
+  const lay = layoutFor(width, view), c = document.createElement('canvas');
+  c.width = lay.W; c.height = lay.H;
+  renderDiagram(new CanvasPainter(c.getContext('2d')), lay, opts);
+  return new Promise(res => c.toBlob(res, fmt === 'jpg' ? 'image/jpeg' : 'image/png', 0.95));
+}
+async function withBusy(btn, fn){
+  const old = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>處理中…';
+  await new Promise(r => setTimeout(r, 30));
+  try{ await fn(); }catch(err){ console.error(err); toast('error', '輸出失敗', err.message || String(err)); }
+  btn.innerHTML = old; btn.disabled = false;
+}
+$('btnImg').addEventListener('click', () => withBusy($('btnImg'), async () => {
+  if (!specValid()) toast('info', '提醒', '規格框尚未設定完整，輸出的圖不會有方框');
+  const name = ($('imgName').value.trim() || 'CIE1931_規格框').replace(/[\\/:*?"<>|]/g, '') + '.' + S.imgFmt;
+  download(await makeImage(S.imgFmt, +$('imgW').value, viewFor(S.view, false), optsBox()), name);
+  toast('success', '已開始下載', name);
+}));
+$('btnImg3').addEventListener('click', () => withBusy($('btnImg3'), async () => {
+  const name = ($('imgName3').value.trim() || `CIE1931_量測結果_${today()}`).replace(/[\\/:*?"<>|]/g, '') + '.' + S.imgFmt3;
+  download(await makeImage(S.imgFmt3, +$('imgW3').value, viewFor(S.view3, true), optsData()), name);
+  toast('success', '已開始下載', name);
+}));
+
+/* =========================================================================
+ * 第三頁：量測資料
+ * ========================================================================= */
+const colName = i => { let s = ''; i++; while (i > 0){ const r = (i-1) % 26; s = String.fromCharCode(65 + r) + s; i = Math.floor((i-1)/26); } return s; };
+const toNum = v => { if (typeof v === 'number') return v; const s = String(v ?? '').trim().replace(/,/g, ''); return s !== '' && isFinite(+s) ? +s : NaN; };
+const normH = v => String(v ?? '').toLowerCase().replace(/[\s_\-.:：]/g, '');
+const isXH = t => /^(cie)?x$|^x[(（\[]|^ciex|^色度x|^x座標|^x值|^[wrgb]x$/.test(t);
+const isYH = t => /^(cie)?y$|^y[(（\[]|^ciey|^色度y|^y座標|^y值|^[wrgb]y$/.test(t);
+const isIdH = t => /^(no|編號|序號|樣品|sample|id|點|pcs|位置|point|sn|批號|lot)/.test(t);
+
+function setGrid(grid, source){
+  D.grid = grid.map(r => Array.isArray(r) ? r : []); D.source = source;
+  detectCols(); buildRows();
+}
+function detectCols(){
+  const g = D.grid; D.hdr = -1; D.cx = D.cy = D.cid = -1; D.start = 0;
+  for (let r = 0; r < Math.min(15, g.length); r++){
+    const row = g[r].map(normH);
+    const ix = row.findIndex(isXH), iy = row.findIndex(isYH);
+    if (ix >= 0 && iy >= 0){
+      D.hdr = r; D.cx = ix; D.cy = iy; D.start = r + 1;
+      D.cid = row.findIndex((t, i) => i !== ix && i !== iy && isIdH(t));
+      if (D.cid < 0 && Math.min(ix, iy) > 0) D.cid = 0;
+      return;
+    }
+  }
+  // 沒有標題：找前兩個「大多是 0～1 數字」的欄位
+  const nc = Math.max(0, ...g.map(r => r.length));
+  const score = [];
+  for (let c = 0; c < nc; c++){ let n = 0, t = 0; for (const r of g.slice(0, 400)){ const v = r[c]; if (v === '' || v === undefined || v === null) continue; t++; const x = toNum(v); if (isFinite(x) && x > 0 && x < 1) n++; } score.push(t ? n/t : 0); }
+  const cols = score.map((s, i) => [s, i]).filter(([s]) => s >= 0.6).map(([, i]) => i);
+  if (cols.length >= 2){
+    D.cx = cols[0]; D.cy = cols[1];
+    D.start = g.findIndex(r => isFinite(toNum(r[D.cx])) && isFinite(toNum(r[D.cy]))); if (D.start < 0) D.start = 0;
+    if (D.start > 0) D.hdr = D.start - 1;
+    D.cid = D.cx > 0 ? 0 : -1;
+  }
+}
+function buildRows(){
+  D.rows = [];
+  if (D.grid && D.cx >= 0 && D.cy >= 0){
+    for (let r = D.start; r < D.grid.length; r++){
+      const row = D.grid[r], x = toNum(row[D.cx]), y = toNum(row[D.cy]);
+      if (!isFinite(x) || !isFinite(y)) continue;
+      const idv = D.cid >= 0 ? row[D.cid] : '';
+      D.rows.push({ src:r + 1, id: String(idv ?? '').trim(), idv, x, y });
+    }
+  }
+  judgeRows();
+}
+function judgeRows(){
+  const ok = specValid(), s = S.spec, eps = 1e-12;
+  for (const r of D.rows){ r.bx = ok && (r.x < s.x0 - eps || r.x > s.x1 + eps); r.by = ok && (r.y < s.y0 - eps || r.y > s.y1 + eps); }
+  renderData(); schedule();
+}
+function stats(){
+  const rows = D.rows, n = rows.length; if (!n) return null;
+  const xs = rows.map(r => r.x), ys = rows.map(r => r.y), sum = a => a.reduce((s, v) => s + v, 0);
+  const ax = sum(xs)/n, ay = sum(ys)/n;
+  const sd = (a, m) => n > 1 ? Math.sqrt(a.reduce((s, v) => s + (v-m)**2, 0)/(n-1)) : NaN;
+  const ok = specValid(), sp = S.spec;
+  const bad = rows.filter(r => r.bx || r.by).length;
+  return { n, ax, ay, maxX:Math.max(...xs), maxY:Math.max(...ys), minX:Math.min(...xs), minY:Math.min(...ys), sdX:sd(xs, ax), sdY:sd(ys, ay), bad,
+    abx: ok && (ax < sp.x0 || ax > sp.x1), aby: ok && (ay < sp.y0 || ay > sp.y1) };
+}
+function renderData(){
+  const ok = specValid(), s = S.spec;
+  $('specStrip').innerHTML = ok ? `<b>規格</b><span class="spec-pill">x：${f4(s.x0)} ~ ${f4(s.x1)}</span><span class="spec-pill">y：${f4(s.y0)} ~ ${f4(s.y1)}</span><span class="hint">（上下限本身算合格）</span>`
+    : '<span class="alert bad" style="margin:0;">第二頁的規格上下限還沒設定完整，無法判定超規。</span>';
+  // 欄位對應
+  const g = D.grid;
+  if (g){
+    const nc = Math.max(0, ...g.map(r => r.length));
+    const hdr = D.hdr >= 0 ? g[D.hdr] : [];
+    const opt = (sel, none) => (none ? `<option value="-1"${sel < 0 ? ' selected' : ''}>（不使用）</option>` : '') + Array.from({ length:nc }, (_, i) => `<option value="${i}"${i === sel ? ' selected' : ''}>${colName(i)} 欄${hdr[i] !== undefined && hdr[i] !== '' ? '：' + esc(String(hdr[i]).slice(0, 18)) : ''}</option>`).join('');
+    let h = '';
+    if (D.wb && D.wb.SheetNames.length > 1) h += `<div class="field" style="grid-column:1/-1;"><label>工作表</label><select class="select" id="mapSheet">${D.wb.SheetNames.map(n => `<option${n === D.sheet ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>`;
+    h += `<div class="field"><label>x 欄</label><select class="select" data-map="cx">${opt(D.cx, false)}</select></div>`;
+    h += `<div class="field"><label>y 欄</label><select class="select" data-map="cy">${opt(D.cy, false)}</select></div>`;
+    h += `<div class="field"><label>編號欄</label><select class="select" data-map="cid">${opt(D.cid, true)}</select></div>`;
+    h += `<div class="field"><label>資料起始列</label><input class="input mono" type="number" min="1" data-map="start" value="${D.start + 1}"></div>`;
+    $('mapArea').innerHTML = h;
+  } else $('mapArea').innerHTML = '';
+  $('dataAlert').innerHTML = g ? (D.rows.length ? `<div class="alert good">來源：${esc(D.source)}，讀到 <b>${D.rows.length}</b> 筆 x、y 數值。</div>` : '<div class="alert bad">找不到可用的 x、y 數值，請在上方改選欄位或起始列。</div>') : '';
+
+  // 統計
+  const st = stats();
+  const tile = (k, v, sub, cls = '') => `<div class="stat ${cls}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`;
+  $('statGrid').innerHTML = st ? [
+    tile('筆數', st.n, D.source ? esc(D.source).slice(0, 30) : ''),
+    tile('平均 x', f4(st.ax), `最大 ${f4(st.maxX)}／最小 ${f4(st.minX)}`, st.abx ? 'bad' : ''),
+    tile('平均 y', f4(st.ay), `最大 ${f4(st.maxY)}／最小 ${f4(st.minY)}`, st.aby ? 'bad' : ''),
+    tile('標準差', `<span style="font-size:16px;">${f4(st.sdX)} / ${f4(st.sdY)}</span>`, 'x / y（樣本標準差）'),
+    tile('超規筆數', st.bad, ok ? `x 超規 ${D.rows.filter(r => r.bx).length}・y 超規 ${D.rows.filter(r => r.by).length}` : '未設定規格', st.bad ? 'bad' : 'good'),
+    tile('合格率', ok ? ((1 - st.bad/st.n)*100).toFixed(1) + '%' : '—', ok ? `${st.n - st.bad} / ${st.n} 筆合格` : '', ok && st.bad ? 'bad' : 'good')
+  ].join('') : '';
+
+  // 表格
+  let rows = D.rows.map((r, i) => [r, i]);
+  if (D.filter === 'ng') rows = rows.filter(([r]) => r.bx || r.by);
+  $('tableSub').textContent = D.rows.length ? `共 ${D.rows.length} 筆，紅色為超出上下限的數值${rows.length > 2000 ? '（只顯示前 2000 筆）' : ''}` : '';
+  if (!D.rows.length){ $('tableArea').innerHTML = '<div class="empty">尚未載入量測資料</div>'; }
+  else {
+    const body = rows.slice(0, 2000).map(([r, i]) => {
+      const c = xyToRgb(r.x, r.y), bad = r.bx || r.by;
+      return `<tr class="${bad ? 'ng' : ''}"><td class="num">${i + 1}</td><td>${esc(r.id)}</td><td class="num ${r.bx ? 'oos' : ''}">${f4(r.x)}</td><td class="num ${r.by ? 'oos' : ''}">${f4(r.y)}</td>
+        <td><span class="sw" style="background:${c ? c.hex : '#000'}"></span></td><td>${ok ? `<span class="tag ${bad ? 'ng' : 'ok'}">${bad ? 'NG' : 'OK'}</span>` : '—'}</td><td class="num" style="color:var(--text-faint)">${r.src}</td></tr>`;
+    }).join('');
+    const avgRow = st ? `<tr style="background:var(--warn-soft);font-weight:800;"><td></td><td>平均</td><td class="num ${st.abx ? 'oos' : ''}">${f4(st.ax)}</td><td class="num ${st.aby ? 'oos' : ''}">${f4(st.ay)}</td><td><span class="sw" style="background:${(xyToRgb(st.ax, st.ay) || {}).hex}"></span></td><td>${ok ? `<span class="tag ${st.abx || st.aby ? 'ng' : 'ok'}">${st.abx || st.aby ? 'NG' : 'OK'}</span>` : ''}</td><td></td></tr>` : '';
+    $('tableArea').innerHTML = `<div class="table-wrap"><table class="dt"><thead><tr><th class="num">No.</th><th>編號</th><th class="num">x</th><th class="num">y</th><th>色</th><th>判定</th><th class="num">原始列</th></tr></thead><tbody>${avgRow}${body}</tbody></table></div>`;
+  }
+  $('btnXl').disabled = !D.rows.length;
+  if (!$('xlName').dataset.edited) $('xlName').value = `CIE色度量測_${today()}`;
+  if (!$('imgName3').value) $('imgName3').value = `CIE1931_量測結果_${today()}`;
+  $('xlAlert').innerHTML = D.rows.length && !ok ? '<div class="alert warn">規格未設定，輸出的 Excel 不會有判定與紅色標示。</div>' : '';
+}
+$('mapArea').addEventListener('change', e => {
+  if (e.target.id === 'mapSheet'){ useSheet(e.target.value); return; }
+  const el = e.target.closest('[data-map]'); if (!el) return;
+  const k = el.dataset.map;
+  if (k === 'start') D.start = Math.max(0, (parseInt(el.value) || 1) - 1); else D[k] = +el.value;
+  buildRows();
+});
+$('rowFilter').addEventListener('click', e => { const b = e.target.closest('[data-f]'); if (!b) return; D.filter = b.dataset.f; $('rowFilter').querySelectorAll('[data-f]').forEach(x => x.classList.toggle('active', x === b)); renderData(); });
+
+/* Excel 的日期／時間儲存格：保留序號，並轉成好讀的文字（不受時區影響） */
+class DateCell{
+  constructor(serial, fmt){
+    this.serial = serial;
+    const p = XLSX.SSF.parse_date_code(serial) || {}, z2 = n => String(n).padStart(2, '0');
+    const hasDate = serial >= 1, hasTime = Math.abs(serial - Math.floor(serial)) > 1e-9 || /[hs]/i.test(String(fmt).replace(/\[[^\]]*\]|"[^"]*"/g, ''));
+    const hasSec = p.S > 0 || /:ss/i.test(fmt || '');
+    const date = `${p.y}/${z2(p.m)}/${z2(p.d)}`, time = `${z2(p.H)}:${z2(p.M)}` + (hasSec ? `:${z2(p.S)}` : '');
+    this.kind = hasDate && hasTime ? 'datetime' : hasDate ? 'date' : 'time';
+    this.txt = this.kind === 'datetime' ? `${date} ${time}` : this.kind === 'date' ? date : time;
+    this.excelFmt = this.kind === 'datetime' ? ('yyyy/mm/dd hh:mm' + (hasSec ? ':ss' : '')) : this.kind === 'date' ? 'yyyy/mm/dd' : ('hh:mm' + (hasSec ? ':ss' : ''));
+    this.parts = p;
+  }
+  toString(){ return this.txt; }
+  toUTCDate(){ const p = this.parts; return this.kind === 'time' ? null : new Date(Date.UTC(p.y, p.m - 1, p.d, p.H || 0, p.M || 0, p.S || 0)); }
+}
+function sheetGrid(ws){
+  const grid = XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:'', blankrows:true });
+  const rg = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+  for (const addr of Object.keys(ws)){
+    if (addr[0] === '!') continue;
+    const c = ws[addr];
+    if (!c || c.t !== 'n' || !c.z || !XLSX.SSF.is_date(c.z)) continue;
+    const a = XLSX.utils.decode_cell(addr), r = a.r - rg.s.r, col = a.c - rg.s.c;
+    if (grid[r] && col >= 0) grid[r][col] = new DateCell(c.v, c.z);
+  }
+  return grid;
+}
+function useSheet(name){
+  D.sheet = name;
+  setGrid(sheetGrid(D.wb.Sheets[name]), `${D.fileName}／${name}`);
+}
+async function loadFile(file){
+  try{
+    const buf = await file.arrayBuffer();
+    D.wb = XLSX.read(new Uint8Array(buf), { type:'array', cellNF:true }); D.fileName = file.name;
+    // 優先選有 x、y 標題的工作表
+    let pick = D.wb.SheetNames[0];
+    for (const n of D.wb.SheetNames){
+      const g = sheetGrid(D.wb.Sheets[n]).slice(0, 15);
+      if (g.some(r => r.map(normH).some(isXH) && r.map(normH).some(isYH))){ pick = n; break; }
+    }
+    useSheet(pick);
+    toast(D.rows.length ? 'success' : 'error', D.rows.length ? '資料已載入' : '沒有找到 x、y 數值', `${file.name}：${D.rows.length} 筆`);
+  }catch(err){ toast('error', '讀取失敗', err.message); }
+}
+(() => {
+  const dz = $('dz'), input = $('fileData');
+  dz.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => { if (input.files[0]) loadFile(input.files[0]); input.value = ''; });
+  ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('drag'); }));
+  dz.addEventListener('drop', e => { const f = (e.dataTransfer.files || [])[0]; if (f) loadFile(f); });
+  ['dragover','drop'].forEach(ev => window.addEventListener(ev, e => { if (!e.target.closest || !e.target.closest('.dropzone')) e.preventDefault(); }));
+})();
+$('btnPaste').addEventListener('click', () => {
+  const text = $('pasteBox').value; if (!text.trim()){ toast('error', '沒有資料', '請先貼上資料'); return; }
+  const tab = /\t/.test(text);
+  const grid = text.split(/\r?\n/).filter(l => l.trim()).map(l => (tab ? l.split('\t') : l.trim().split(/[,;\s]+/)).map(c => { const n = toNum(c); return isFinite(n) && String(c).trim() !== '' ? n : String(c).trim(); }));
+  D.wb = null; setGrid(grid, '貼上的資料');
+  toast(D.rows.length ? 'success' : 'error', D.rows.length ? '已套用' : '沒有找到 x、y 數值', `${D.rows.length} 筆`);
+});
+$('btnSample').addEventListener('click', () => {
+  const s = specValid() ? S.spec : { x0:0.30, x1:0.32, y0:0.31, y1:0.34 };
+  const cx = (s.x0+s.x1)/2, cy = (s.y0+s.y1)/2, wx = (s.x1-s.x0)/2, wy = (s.y1-s.y0)/2;
+  const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); v = Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); };
+  const lines = ['No.\tx\ty'];
+  for (let i = 1; i <= 24; i++) lines.push(`${i}\t${(cx + gauss()*wx*0.55).toFixed(4)}\t${(cy + gauss()*wy*0.55).toFixed(4)}`);
+  $('pasteBox').value = lines.join('\n'); $('btnPaste').click();
+});
+$('btnClear').addEventListener('click', () => { D.grid = null; D.wb = null; D.rows = []; D.source = ''; $('pasteBox').value = ''; renderData(); schedule(); });
+$('btnGoSpec').addEventListener('click', () => switchTab('box'));
+$('xlName').addEventListener('input', () => { $('xlName').dataset.edited = $('xlName').value ? '1' : ''; });
+
+/* ---------------- 輸出 Excel（含圖片） ---------------- */
+function loadScript(src){ return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('無法載入 ' + src)); document.head.appendChild(s); }); }
+async function ensureExcelJS(){
+  if (window.ExcelJS) return;
+  try{ await loadScript('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js'); }
+  catch(e){ await loadScript('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js'); }
+  if (!window.ExcelJS) throw new Error('Excel 元件載入失敗（需要網路連線）');
+}
+async function buildExcel(){
+  await ensureExcelJS();
+  const st = stats(), ok = specValid(), sp = S.spec, n = D.rows.length;
+  const wb = new ExcelJS.Workbook(); wb.creator = 'CIE 色度圖工具'; wb.created = new Date();
+  const ws = wb.addWorksheet('色度量測', { views:[{ showGridLines:false }] });
+  ws.columns = [{ width:11 }, { width:21 }, { width:12 }, { width:12 }, { width:10 }, { width:10 }, { width:10 }, { width:3 }];
+  const thin = { style:'thin', color:{ argb:'FFB9AE98' } }, box = { top:thin, left:thin, bottom:thin, right:thin };
+  const hdrFill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFE7DAC1' } };
+  const secFill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFA1512C' } };
+  const badFont = { color:{ argb:'FFFF0000' }, bold:true }, badFill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFFDE2E1' } };
+  const F4 = '0.0000';
+  const put = (ref, v, o = {}) => { const c = ws.getCell(ref); c.value = v; if (o.fmt) c.numFmt = o.fmt; c.border = o.noBorder ? undefined : box; c.alignment = { vertical:'middle', horizontal:o.h || 'center' }; if (o.fill) c.fill = o.fill; if (o.font) c.font = o.font; return c; };
+  const section = (r, text) => { ws.mergeCells(`A${r}:G${r}`); const c = ws.getCell(`A${r}`); c.value = text; c.font = { bold:true, color:{ argb:'FFFFFFFF' }, size:12 }; c.fill = secFill; c.alignment = { vertical:'middle', indent:1 }; ws.getRow(r).height = 22; };
+
+  ws.mergeCells('A1:G1'); Object.assign(ws.getCell('A1'), { value:'CIE 1931 xy 色度量測報告' }); ws.getCell('A1').font = { bold:true, size:16 }; ws.getRow(1).height = 28;
+  ws.mergeCells('A2:G2'); ws.getCell('A2').value = `產出時間：${new Date().toLocaleString('zh-TW', { hour12:false })}　資料來源：${D.source || ''}`; ws.getCell('A2').font = { size:10, color:{ argb:'FF6C5D47' } };
+
+  section(4, '規格（上下限）');
+  ['項目', '下限', '上限', '中心值'].forEach((t, i) => put(`${'ABCD'[i]}5`, t, { fill:hdrFill, font:{ bold:true } }));
+  put('A6', 'x', { font:{ bold:true } }); put('B6', ok ? sp.x0 : null, { fmt:F4 }); put('C6', ok ? sp.x1 : null, { fmt:F4 }); put('D6', ok ? { formula:'AVERAGE(B6:C6)', result:(sp.x0+sp.x1)/2 } : null, { fmt:F4 });
+  put('A7', 'y', { font:{ bold:true } }); put('B7', ok ? sp.y0 : null, { fmt:F4 }); put('C7', ok ? sp.y1 : null, { fmt:F4 }); put('D7', ok ? { formula:'AVERAGE(B7:C7)', result:(sp.y0+sp.y1)/2 } : null, { fmt:F4 });
+
+  const r0 = 21, r1 = r0 + n - 1, X = `C${r0}:C${r1}`, Yr = `D${r0}:D${r1}`;
+  section(9, '統計');
+  ['項目', 'x', 'y'].forEach((t, i) => put(`${'ABC'[i]}10`, t, { fill:hdrFill, font:{ bold:true } }));
+  const statRows = [
+    ['平均', `AVERAGE(${X})`, st.ax, `AVERAGE(${Yr})`, st.ay, true],
+    ['最大', `MAX(${X})`, st.maxX, `MAX(${Yr})`, st.maxY],
+    ['最小', `MIN(${X})`, st.minX, `MIN(${Yr})`, st.minY],
+    ['標準差', `IF(COUNT(${X})>1,STDEV(${X}),"")`, isFinite(st.sdX) ? st.sdX : '', `IF(COUNT(${Yr})>1,STDEV(${Yr}),"")`, isFinite(st.sdY) ? st.sdY : '']
+  ];
+  statRows.forEach(([lab, fx, vx, fy, vy, isAvg], i) => {
+    const r = 11 + i;
+    put(`A${r}`, lab, { font:{ bold:true } });
+    put(`B${r}`, { formula:fx, result:vx }, { fmt:F4, font: isAvg && st.abx ? badFont : undefined, fill: isAvg && st.abx ? badFill : undefined });
+    put(`C${r}`, { formula:fy, result:vy }, { fmt:F4, font: isAvg && st.aby ? badFont : undefined, fill: isAvg && st.aby ? badFill : undefined });
+  });
+  put('A15', '筆數', { font:{ bold:true } }); ws.mergeCells('B15:C15'); put('B15', { formula:`COUNT(${X})`, result:n });
+  put('A16', '超規筆數', { font:{ bold:true } }); ws.mergeCells('B16:C16'); put('B16', ok ? { formula:`COUNTIF(G${r0}:G${r1},"NG")`, result:st.bad } : '未設定規格', { font: st.bad ? badFont : undefined });
+  put('A17', '合格率', { font:{ bold:true } }); ws.mergeCells('B17:C17'); put('B17', ok ? { formula:'IF(B15=0,"",1-B16/B15)', result:1 - st.bad/n } : '', { fmt:'0.0%' });
+  if (ok){
+    ws.addConditionalFormatting({ ref:'B11', rules:[{ type:'expression', priority:1, formulae:['OR(B11<$B$6,B11>$C$6)'], style:{ font:{ color:{ argb:'FFFF0000' }, bold:true }, fill:{ type:'pattern', pattern:'solid', bgColor:{ argb:'FFFDE2E1' } } } }] });
+    ws.addConditionalFormatting({ ref:'C11', rules:[{ type:'expression', priority:2, formulae:['OR(C11<$B$7,C11>$C$7)'], style:{ font:{ color:{ argb:'FFFF0000' }, bold:true }, fill:{ type:'pattern', pattern:'solid', bgColor:{ argb:'FFFDE2E1' } } } }] });
+  }
+
+  section(19, '量測數值');
+  ['No.', '樣品編號', 'x', 'y', 'x 判定', 'y 判定', '結果'].forEach((t, i) => put(`${'ABCDEFG'[i]}20`, t, { fill:hdrFill, font:{ bold:true } }));
+  D.rows.forEach((d, i) => {
+    const r = r0 + i;
+    put(`A${r}`, i + 1);
+    if (d.idv instanceof DateCell){
+      const dt = d.idv.toUTCDate();
+      put(`B${r}`, dt || d.idv.serial, { fmt:d.idv.excelFmt });
+    } else put(`B${r}`, d.id === '' ? null : (isFinite(+d.id) ? +d.id : d.id));
+    put(`C${r}`, d.x, { fmt:F4, font: d.bx ? badFont : undefined, fill: d.bx ? badFill : undefined });
+    put(`D${r}`, d.y, { fmt:F4, font: d.by ? badFont : undefined, fill: d.by ? badFill : undefined });
+    if (ok){
+      put(`E${r}`, { formula:`IF(OR(C${r}<$B$6,C${r}>$C$6),"超規","OK")`, result: d.bx ? '超規' : 'OK' }, { font: d.bx ? badFont : undefined });
+      put(`F${r}`, { formula:`IF(OR(D${r}<$B$7,D${r}>$C$7),"超規","OK")`, result: d.by ? '超規' : 'OK' }, { font: d.by ? badFont : undefined });
+      put(`G${r}`, { formula:`IF(AND(E${r}="OK",F${r}="OK"),"OK","NG")`, result: d.bx || d.by ? 'NG' : 'OK' }, { font: d.bx || d.by ? badFont : { bold:true, color:{ argb:'FF2E7D32' } } });
+    } else ['E','F','G'].forEach(c => put(`${c}${r}`, '—'));
+  });
+  if (ok && n){
+    const red = { font:{ color:{ argb:'FFFF0000' }, bold:true }, fill:{ type:'pattern', pattern:'solid', bgColor:{ argb:'FFFDE2E1' } } };
+    ws.addConditionalFormatting({ ref:X, rules:[{ type:'expression', priority:3, formulae:[`OR(C${r0}<$B$6,C${r0}>$C$6)`], style:red }] });
+    ws.addConditionalFormatting({ ref:Yr, rules:[{ type:'expression', priority:4, formulae:[`OR(D${r0}<$B$7,D${r0}>$C$7)`], style:red }] });
+  }
+  ws.views = [{ showGridLines:false }];   // 不凍結窗格，避免影響圖片位置
+
+  // 色度圖（規格框 + 量測點）
+  const view = viewFor(S.view3, true), lay = layoutFor(1600, view), cv = document.createElement('canvas');
+  cv.width = lay.W; cv.height = lay.H;
+  renderDiagram(new CanvasPainter(cv.getContext('2d')), lay, optsData());
+  const imgId = wb.addImage({ base64:cv.toDataURL('image/png'), extension:'png' });
+  ws.getCell('I3').value = '色度圖（規格框＋量測點）'; ws.getCell('I3').font = { bold:true, size:12 };
+  const iw = 640; ws.addImage(imgId, { tl:{ col:8, row:3.3 }, ext:{ width:iw, height:Math.round(iw*lay.H/lay.W) } });
+  // 另附全圖
+  if (S.view3.mode !== 'full'){
+    const lay2 = layoutFor(1600, FULL_VIEW), cv2 = document.createElement('canvas'); cv2.width = lay2.W; cv2.height = lay2.H;
+    renderDiagram(new CanvasPainter(cv2.getContext('2d')), lay2, optsData());
+    const ws2 = wb.addWorksheet('色度圖全圖', { views:[{ showGridLines:false }] });
+    ws2.getCell('A1').value = 'CIE 1931 xy 色度圖（全圖）'; ws2.getCell('A1').font = { bold:true, size:13 };
+    ws2.addImage(wb.addImage({ base64:cv2.toDataURL('image/png'), extension:'png' }), { tl:{ col:0, row:1.4 }, ext:{ width:760, height:Math.round(760*lay2.H/lay2.W) } });
+  }
+  const buf = await wb.xlsx.writeBuffer();
+  return new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+$('btnXl').addEventListener('click', () => withBusy($('btnXl'), async () => {
+  const name = ($('xlName').value.trim() || `CIE色度量測_${today()}`).replace(/[\\/:*?"<>|]/g, '') + '.xlsx';
+  download(await buildExcel(), name);
+  toast('success', '已開始下載', name);
+}));
+
+/* =========================================================================
+ * 初始化
+ * ========================================================================= */
+$('ptX').value = S.pt.x.toFixed(4); $('ptY').value = S.pt.y.toFixed(4);
+for (const [id, k] of Object.entries(SPEC_IDS)) $(id).value = isFinite(S.spec[k]) ? S.spec[k].toFixed(4) : '';
+$('rcColor').value = S.rect.color; $('rcColorTxt').textContent = S.rect.color.toUpperCase(); $('rcLw').value = String(S.rect.lw);
+VIEWCTL.forEach(syncView); syncToggles(); imgHint();
+updatePt(); readSpec(); renderData();
+const fontsReady = document.fonts ? Promise.all([document.fonts.load('400 16px "Noto Sans TC"'), document.fonts.load('700 16px "JetBrains Mono"')]).catch(() => {}) : Promise.resolve();
+fontsReady.then(() => { fillCache.clear(); schedule(); });
+schedule();
+/* ---------- 安裝成應用程式（PWA） ---------- */
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW', err)));
+}
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; $('btnInstall').hidden = false; });
+$('btnInstall').addEventListener('click', async () => {
+  if (!installEvt) return;
+  installEvt.prompt(); await installEvt.userChoice.catch(() => {}); installEvt = null; $('btnInstall').hidden = true;
+});
+window.addEventListener('appinstalled', () => { $('btnInstall').hidden = true; toast('success', '已安裝', '可以從桌面或開始功能表開啟「CIE 色度圖工具」'); });
+window.CIE = { S, D, KELLY, planckXY, xyToRgb, dominant, inLocus, renderDiagram, layoutFor, makeImage, buildExcel, setGrid };
+</script>
+</body>
+</html>
