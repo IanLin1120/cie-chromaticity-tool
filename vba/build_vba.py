@@ -272,13 +272,19 @@ def doc_module(name):
         'Attribute VB_GlobalNameSpace = False', 'Attribute VB_Creatable = False', 'Attribute VB_PredeclaredId = True',
         'Attribute VB_Exposed = True', 'Attribute VB_TemplateDerived = False', 'Attribute VB_Customizable = True']) + '\r\n'
 
-def build(module_src_path, sheets=3):
+def build(module_src_path, sheets=3, sheet1_code=None):
     src = open(module_src_path, encoding='utf-8').read()
     src = re.sub(r'\{\{(.*?)\}\}', lambda m: chrw_expr(m.group(1)), src)
     assert all(ord(c) < 128 for c in src), 'module source must be ASCII after ChrW conversion'
     src = src.replace('\r\n', '\n').replace('\n', '\r\n')
     modules = [('ThisWorkbook', 'doc', doc_module('ThisWorkbook'))]
-    modules += [(f'Sheet{i}', 'doc', doc_module(f'Sheet{i}')) for i in range(1, sheets + 1)]
+    def extra(i):
+        if i == 1 and sheet1_code:
+            code = open(sheet1_code, encoding='utf-8').read().replace('\r\n', '\n').replace('\n', '\r\n')
+            assert all(ord(c) < 128 for c in code)
+            return code
+        return ''
+    modules += [(f'Sheet{i}', 'doc', doc_module(f'Sheet{i}') + extra(i)) for i in range(1, sheets + 1)]
     modules += [('Module1', 'std', src)]
     vba = {'_VBA_PROJECT': b'\xCC\x61\xFF\xFF\x00\x00\x00', 'dir': ovba_compress(dir_stream(modules))}
     for name, kind, text in modules:
@@ -288,5 +294,5 @@ def build(module_src_path, sheets=3):
 
 if __name__ == '__main__':
     out = sys.argv[2] if len(sys.argv) > 2 else 'vbaProject.bin'
-    data = build(sys.argv[1])
+    data = build(sys.argv[1], sheet1_code=sys.argv[3] if len(sys.argv) > 3 else None)
     open(out, 'wb').write(data); print(out, len(data), 'bytes')

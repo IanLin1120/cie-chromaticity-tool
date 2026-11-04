@@ -1,9 +1,18 @@
 Attribute VB_Name = "Module1"
-' CIE 1931 xy measurement report - recalculation macro
+' CIE 1931 xy measurement report - recalculation / chart macros
 ' Source is ASCII-only on purpose (Chinese text is built with ChrW so it works with any code page).
 Option Explicit
 
-Private Const R0 As Long = 21   ' first data row (row 20 = header)
+Private Const R0 As Long = 21          ' first data row (row 20 = header)
+Private Const C_IMG As String = "J2"   ' image selector (data validation list)
+Private Const C_BOX As String = "K2"   ' check cells (first char is a check mark)
+Private Const C_PTS As String = "L2"
+Private Const C_AVG As String = "M2"
+
+' current image transform (set by Overlay)
+Private mVX0 As Double, mVX1 As Double, mVY0 As Double, mVY1 As Double
+Private mFL As Double, mFT As Double, mFW As Double, mFH As Double
+Private mIL As Double, mIT As Double, mIW As Double, mIH As Double
 
 ' ---------- text helpers (Traditional Chinese via ChrW) ----------
 Private Function T_OOS() As String
@@ -26,6 +35,12 @@ Private Function T_NOSPEC() As String
 End Function
 Private Function T_TITLE() As String
     T_TITLE = {{CIE 色度量測}}
+End Function
+Private Function CHK() As String
+    CHK = ChrW(&H2611)
+End Function
+Private Function UNCHK() As String
+    UNCHK = ChrW(&H2610)
 End Function
 
 ' ---------- utilities ----------
@@ -57,14 +72,15 @@ Private Function ParamSheet() As Worksheet
     Next s
 End Function
 
-Private Function Prm(ByVal key As String, ByVal dflt As Double) As Double
+' global settings: key in column L, value in column M of the parameter sheet
+Private Function Gp(ByVal key As String, ByVal dflt As Double) As Double
     Dim ps As Worksheet, r As Long
-    Prm = dflt
+    Gp = dflt
     Set ps = ParamSheet()
     If ps Is Nothing Then Exit Function
-    For r = 1 To 100
-        If CStr(ps.Cells(r, 1).Value) = key Then
-            If IsNum(ps.Cells(r, 2).Value) Then Prm = CDbl(ps.Cells(r, 2).Value)
+    For r = 1 To 60
+        If CStr(ps.Cells(r, 12).Value) = key Then
+            If IsNum(ps.Cells(r, 13).Value) Then Gp = CDbl(ps.Cells(r, 13).Value)
             Exit Function
         End If
     Next r
@@ -99,6 +115,21 @@ Private Sub ClearMark(ByVal rg As Range)
     rg.Interior.Pattern = -4142   ' xlNone
 End Sub
 
+Public Function IsOn(ByVal c As Range) As Boolean
+    IsOn = (Left$(CStr(c.Value), 1) = CHK())
+End Function
+
+Public Sub ToggleBox(ByVal c As Range)
+    Dim t As String
+    t = CStr(c.Value)
+    If Len(t) = 0 Then t = UNCHK()
+    If IsOn(c) Then
+        c.Value = UNCHK() & Mid$(t, 2)
+    Else
+        c.Value = CHK() & Mid$(t, 2)
+    End If
+End Sub
+
 ' ---------- main: assigned to the button ----------
 Public Sub RecalcAll()
     Dim ws As Worksheet
@@ -108,8 +139,10 @@ Public Sub RecalcAll()
         Exit Sub
     End If
 
-    Dim calcMode As Long
+    Dim calcMode As Long, evts As Boolean
     calcMode = Application.Calculation
+    evts = Application.EnableEvents
+    Application.EnableEvents = False
     Application.ScreenUpdating = False
     Application.Calculation = -4135   ' xlCalculationManual
     On Error GoTo Fail
@@ -129,6 +162,10 @@ Public Sub RecalcAll()
     sx0 = ws.Range("B6").Value: sx1 = ws.Range("C6").Value
     sy0 = ws.Range("B7").Value: sy1 = ws.Range("C7").Value
     specOK = IsNum(sx0) And IsNum(sx1) And IsNum(sy0) And IsNum(sy1)
+    If specOK Then
+        ws.Range("D6").Formula = "=AVERAGE(B6:C6)"
+        ws.Range("D7").Formula = "=AVERAGE(B7:C7)"
+    End If
 
     ' 3) numbering, judgement formulas and highlighting
     Dim x As Variant, y As Variant, bx As Boolean, by As Boolean, rowRg As Range
@@ -206,98 +243,225 @@ Public Sub RecalcAll()
         If nBad > 0 Then MarkBad ws.Range("B16"), False
     End If
 
-    ' 5) redraw the measurement points on the diagram
+    ' 5) redraw spec box / points / average on every diagram image
     On Error Resume Next
-    DrawPoints ws, lastR, specOK, sx0, sx1, sy0, sy1
+    DrawAll ws
     On Error GoTo Fail
 
     Application.Calculation = calcMode
     Application.ScreenUpdating = True
+    Application.EnableEvents = evts
     MsgBox T_DONE() & n & T_BAD() & nBad, vbInformation, T_TITLE()
     Exit Sub
 Fail:
     Application.Calculation = calcMode
     Application.ScreenUpdating = True
+    Application.EnableEvents = evts
     MsgBox T_ERR() & Err.Description, vbExclamation, T_TITLE()
 End Sub
 
-' ---------- diagram: points are drawn as shapes on top of the bImg image ----------
-Private Sub DrawPoints(ByVal ws As Worksheet, ByVal lastR As Long, ByVal specOK As Boolean, _
-                       ByVal sx0 As Variant, ByVal sx1 As Variant, ByVal sy0 As Variant, ByVal sy1 As Variant)
-    Dim i As Long
-    For i = ws.Shapes.Count To 1 Step -1
-        If Left$(ws.Shapes(i).Name, 6) = "CIEpt_" Then ws.Shapes(i).Delete
-    Next i
-
-    Dim img As Shape, bImg As Shape
-    Set img = Nothing: Set bImg = Nothing
+' redraw the diagram overlays only (used by the image selector and the check cells)
+Public Sub RefreshChart()
+    Dim ws As Worksheet, evts As Boolean
+    Set ws = FindDataSheet()
+    If ws Is Nothing Then Exit Sub
+    evts = Application.EnableEvents
+    Application.EnableEvents = False
+    Application.ScreenUpdating = False
     On Error Resume Next
-    Set img = ws.Shapes("CIE_Chart")
-    Set bImg = ws.Shapes("CIE_Base")
-    On Error GoTo 0
-    If bImg Is Nothing Then Exit Sub
-    If Not img Is Nothing Then
-        bImg.LockAspectRatio = 0
-        bImg.Left = img.Left: bImg.Top = img.Top
-        bImg.Width = img.Width: bImg.Height = img.Height
-        img.Visible = 0
+    DrawAll ws
+    Application.ScreenUpdating = True
+    Application.EnableEvents = evts
+End Sub
+
+' ---------- diagram overlays ----------
+Private Sub DrawAll(ByVal ws As Worksheet)
+    Dim ps As Worksheet
+    Set ps = ParamSheet()
+    If ps Is Nothing Then Exit Sub
+
+    Dim specOK As Boolean, sx0 As Double, sx1 As Double, sy0 As Double, sy1 As Double
+    specOK = IsNum(ws.Range("B6").Value) And IsNum(ws.Range("C6").Value) And IsNum(ws.Range("B7").Value) And IsNum(ws.Range("C7").Value)
+    If specOK Then
+        sx0 = CDbl(ws.Range("B6").Value): sx1 = CDbl(ws.Range("C6").Value)
+        sy0 = CDbl(ws.Range("B7").Value): sy1 = CDbl(ws.Range("C7").Value)
+        specOK = (sx0 < sx1 And sy0 < sy1)
     End If
-    bImg.Visible = -1
 
-    Dim vx0 As Double, vx1 As Double, vy0 As Double, vy1 As Double
-    Dim fl As Double, ft As Double, fw As Double, fh As Double, d As Double
-    vx0 = Prm("vx0", 0): vx1 = Prm("vx1", 0.8): vy0 = Prm("vy0", 0): vy1 = Prm("vy1", 0.9)
-    fl = Prm("fl", 0.1): ft = Prm("ft", 0.07): fw = Prm("fw", 0.86): fh = Prm("fh", 0.84)
-    d = bImg.Width * Prm("dot", 0.011)
-    Dim showPts As Boolean, showAvg As Boolean
-    showPts = (Prm("pts", 1) <> 0)
-    showAvg = (Prm("avg", 1) <> 0)
+    Dim lastR As Long, r As Long, n As Long
+    Dim xs() As Double, ys() As Double
+    lastR = LastRowIn(ws, 3, 4)
+    ReDim xs(0 To 0): ReDim ys(0 To 0)
+    If lastR >= R0 Then
+        ReDim xs(1 To lastR - R0 + 1): ReDim ys(1 To lastR - R0 + 1)
+        For r = R0 To lastR
+            If IsNum(ws.Cells(r, 3).Value) And IsNum(ws.Cells(r, 4).Value) Then
+                n = n + 1
+                xs(n) = CDbl(ws.Cells(r, 3).Value)
+                ys(n) = CDbl(ws.Cells(r, 4).Value)
+            End If
+        Next r
+    End If
 
-    Dim r As Long, x As Double, y As Double, bad As Boolean, px As Double, py As Double
-    Dim sumX As Double, sumY As Double, cnt As Long, s As Shape
-    On Error Resume Next      ' a styling property that is not supported must not stop the drawing
-    For r = R0 To lastR
-        If IsNum(ws.Cells(r, 3).Value) And IsNum(ws.Cells(r, 4).Value) Then
-            x = CDbl(ws.Cells(r, 3).Value): y = CDbl(ws.Cells(r, 4).Value)
-            sumX = sumX + x: sumY = sumY + y: cnt = cnt + 1
-            If showPts And x >= vx0 And x <= vx1 And y >= vy0 And y <= vy1 Then
-                bad = False
-                If specOK Then bad = (x < sx0 Or x > sx1 Or y < sy0 Or y > sy1)
-                px = bImg.Left + (fl + (x - vx0) / (vx1 - vx0) * fw) * bImg.Width
-                py = bImg.Top + (ft + (1 - (y - vy0) / (vy1 - vy0)) * fh) * bImg.Height
-                Set s = Nothing
-                Set s = ws.Shapes.AddShape(9, px - d / 2, py - d / 2, d, d)      ' msoShapeOval
-                If Not s Is Nothing Then
-                    s.Name = "CIEpt_" & r
-                    If bad Then
-                        s.Fill.ForeColor.RGB = RGB(255, 59, 48): s.Line.ForeColor.RGB = RGB(255, 255, 255)
-                    Else
-                        s.Fill.ForeColor.RGB = RGB(255, 255, 255): s.Line.ForeColor.RGB = RGB(0, 0, 0)
-                    End If
-                    s.Line.Weight = 0.75
-                    s.Placement = 2   ' xlMove
+    Dim showBox As Boolean, showPts As Boolean, showAvg As Boolean, sel As String
+    showBox = IsOn(ws.Range(C_BOX))
+    showPts = IsOn(ws.Range(C_PTS))
+    showAvg = IsOn(ws.Range(C_AVG))
+    sel = CStr(ws.Range(C_IMG).Value)
+
+    ' remove previous overlays everywhere
+    Dim s As Worksheet, i As Long
+    For Each s In ThisWorkbook.Worksheets
+        For i = s.Shapes.Count To 1 Step -1
+            If Left$(s.Shapes(i).Name, 6) = "CIEov_" Then s.Shapes(i).Delete
+        Next i
+    Next s
+
+    ' is the selected label one of the images?  otherwise fall back to the first one
+    Dim k As Long, found As Boolean
+    For k = 2 To 60
+        If CStr(ps.Cells(k, 1).Value) = "" Then Exit For
+        If CStr(ps.Cells(k, 2).Value) = sel Then found = True
+    Next k
+    If Not found Then
+        sel = CStr(ps.Cells(2, 2).Value)
+        ws.Range(C_IMG).Value = sel
+    End If
+
+    Dim nm As String, lbl As String, img As Shape
+    On Error Resume Next
+    For k = 2 To 60
+        nm = CStr(ps.Cells(k, 1).Value)
+        If nm = "" Then Exit For
+        lbl = CStr(ps.Cells(k, 2).Value)
+        For Each s In ThisWorkbook.Worksheets
+            Set img = Nothing
+            Set img = s.Shapes("M_" & nm)
+            If Not img Is Nothing Then
+                If lbl = sel Then
+                    img.Visible = -1
+                    Overlay s, img, "CIEov_M_" & nm & "_", ps, k, showBox, showPts, showAvg, specOK, sx0, sx1, sy0, sy1, xs, ys, n
+                Else
+                    img.Visible = 0
                 End If
             End If
-        End If
-    Next r
+            Set img = Nothing
+            Set img = s.Shapes("G_" & nm)
+            If Not img Is Nothing Then
+                Overlay s, img, "CIEov_G_" & nm & "_", ps, k, showBox, showPts, showAvg, specOK, sx0, sx1, sy0, sy1, xs, ys, n
+            End If
+        Next s
+    Next k
+End Sub
 
-    If showAvg And cnt > 0 Then
-        x = sumX / cnt: y = sumY / cnt
-        If x >= vx0 And x <= vx1 And y >= vy0 And y <= vy1 Then
+Private Function PX(ByVal x As Double) As Double
+    PX = mIL + (mFL + (x - mVX0) / (mVX1 - mVX0) * mFW) * mIW
+End Function
+Private Function PY(ByVal y As Double) As Double
+    PY = mIT + (mFT + (1 - (y - mVY0) / (mVY1 - mVY0)) * mFH) * mIH
+End Function
+Private Function InView(ByVal x As Double, ByVal y As Double) As Boolean
+    InView = (x >= mVX0 And x <= mVX1 And y >= mVY0 And y <= mVY1)
+End Function
+
+Private Sub Overlay(ByVal sh As Worksheet, ByVal img As Shape, ByVal pre As String, ByVal ps As Worksheet, ByVal k As Long, _
+                    ByVal showBox As Boolean, ByVal showPts As Boolean, ByVal showAvg As Boolean, ByVal specOK As Boolean, _
+                    ByVal sx0 As Double, ByVal sx1 As Double, ByVal sy0 As Double, ByVal sy1 As Double, _
+                    xs() As Double, ys() As Double, ByVal n As Long)
+    On Error Resume Next
+    mVX0 = ps.Cells(k, 3).Value: mVX1 = ps.Cells(k, 4).Value
+    mVY0 = ps.Cells(k, 5).Value: mVY1 = ps.Cells(k, 6).Value
+    mFL = ps.Cells(k, 7).Value: mFT = ps.Cells(k, 8).Value
+    mFW = ps.Cells(k, 9).Value: mFH = ps.Cells(k, 10).Value
+    mIL = img.Left: mIT = img.Top: mIW = img.Width: mIH = img.Height
+    If mVX1 <= mVX0 Or mVY1 <= mVY0 Then Exit Sub
+
+    ' spec box: four edges, each clipped to the visible range
+    If showBox And specOK Then
+        Dim lw As Double, col As Long
+        lw = Gp("boxW", 3) * mIW / 1000
+        col = RGB(Gp("boxR", 255), Gp("boxG", 45), Gp("boxB", 85))
+        Edge sh, pre & "b1", sx0, sy0, sx1, sy0, lw, col
+        Edge sh, pre & "b2", sx0, sy1, sx1, sy1, lw, col
+        Edge sh, pre & "b3", sx0, sy0, sx0, sy1, lw, col
+        Edge sh, pre & "b4", sx1, sy0, sx1, sy1, lw, col
+    End If
+
+    Dim d As Double, i As Long, bad As Boolean, sumX As Double, sumY As Double, s As Shape
+    d = mIW * Gp("dot", 0.0095)
+    For i = 1 To n
+        sumX = sumX + xs(i): sumY = sumY + ys(i)
+        If showPts And InView(xs(i), ys(i)) Then
             bad = False
-            If specOK Then bad = (x < sx0 Or x > sx1 Or y < sy0 Or y > sy1)
-            px = bImg.Left + (fl + (x - vx0) / (vx1 - vx0) * fw) * bImg.Width
-            py = bImg.Top + (ft + (1 - (y - vy0) / (vy1 - vy0)) * fh) * bImg.Height
+            If specOK Then bad = (xs(i) < sx0 Or xs(i) > sx1 Or ys(i) < sy0 Or ys(i) > sy1)
             Set s = Nothing
-            Set s = ws.Shapes.AddShape(4, px - d, py - d, 2 * d, 2 * d)       ' msoShapeDiamond
-            If s Is Nothing Then Set s = ws.Shapes.AddShape(9, px - d, py - d, 2 * d, 2 * d)
+            Set s = sh.Shapes.AddShape(9, PX(xs(i)) - d / 2, PY(ys(i)) - d / 2, d, d)      ' msoShapeOval
             If Not s Is Nothing Then
-                s.Name = "CIEpt_avg"
+                s.Name = pre & "p" & i
+                If bad Then
+                    s.Fill.ForeColor.RGB = RGB(255, 59, 48): s.Line.ForeColor.RGB = RGB(255, 255, 255)
+                Else
+                    s.Fill.ForeColor.RGB = RGB(255, 255, 255): s.Line.ForeColor.RGB = RGB(0, 0, 0)
+                End If
+                s.Line.Weight = 0.75
+                s.Placement = 3   ' xlFreeFloating
+            End If
+        End If
+    Next i
+
+    If showAvg And n > 0 Then
+        Dim ax As Double, ay As Double
+        ax = sumX / n: ay = sumY / n
+        If InView(ax, ay) Then
+            bad = False
+            If specOK Then bad = (ax < sx0 Or ax > sx1 Or ay < sy0 Or ay > sy1)
+            Set s = Nothing
+            Set s = sh.Shapes.AddShape(4, PX(ax) - d, PY(ay) - d, 2 * d, 2 * d)       ' msoShapeDiamond
+            If s Is Nothing Then Set s = sh.Shapes.AddShape(9, PX(ax) - d, PY(ay) - d, 2 * d, 2 * d)
+            If Not s Is Nothing Then
+                s.Name = pre & "avg"
                 If bad Then s.Fill.ForeColor.RGB = RGB(255, 59, 48) Else s.Fill.ForeColor.RGB = RGB(255, 214, 10)
                 s.Line.ForeColor.RGB = RGB(0, 0, 0)
                 s.Line.Weight = 1
-                s.Placement = 2
+                s.Placement = 3
             End If
         End If
+    End If
+End Sub
+
+' one spec-box edge (horizontal or vertical), clipped to the view; dark outline + coloured line
+Private Sub Edge(ByVal sh As Worksheet, ByVal nm As String, ByVal x0 As Double, ByVal y0 As Double, _
+                 ByVal x1 As Double, ByVal y1 As Double, ByVal lw As Double, ByVal col As Long)
+    Dim a As Double, b As Double, ext0 As Double, ext1 As Double, hw As Double
+    Dim p0x As Double, p0y As Double, p1x As Double, p1y As Double, s As Shape
+    hw = (lw + 2.6 * mIW / 1000) / 2
+    If y0 = y1 Then
+        If y0 < mVY0 Or y0 > mVY1 Then Exit Sub
+        a = x0: b = x1
+        If a < mVX0 Then a = mVX0
+        If b > mVX1 Then b = mVX1
+        If a >= b Then Exit Sub
+        If a = x0 Then ext0 = hw
+        If b = x1 Then ext1 = hw
+        p0x = PX(a) - ext0: p1x = PX(b) + ext1: p0y = PY(y0): p1y = p0y
+    Else
+        If x0 < mVX0 Or x0 > mVX1 Then Exit Sub
+        a = y0: b = y1
+        If a < mVY0 Then a = mVY0
+        If b > mVY1 Then b = mVY1
+        If a >= b Then Exit Sub
+        If a = y0 Then ext0 = hw
+        If b = y1 Then ext1 = hw
+        p0x = PX(x0): p1x = p0x: p0y = PY(a) + ext0: p1y = PY(b) - ext1
+    End If
+    Set s = Nothing
+    Set s = sh.Shapes.AddLine(p0x, p0y, p1x, p1y)
+    If Not s Is Nothing Then
+        s.Name = nm & "o": s.Line.ForeColor.RGB = RGB(0, 0, 0): s.Line.Weight = lw + 2.6 * mIW / 1000: s.Placement = 3
+    End If
+    Set s = Nothing
+    Set s = sh.Shapes.AddLine(p0x, p0y, p1x, p1y)
+    If Not s Is Nothing Then
+        s.Name = nm & "c": s.Line.ForeColor.RGB = col: s.Line.Weight = lw: s.Placement = 3
     End If
 End Sub
