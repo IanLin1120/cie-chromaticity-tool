@@ -11,3 +11,5 @@ python3 build_vba.py Module1.bas vbaProject.bin Sheet1_events.bas
 ```
 
 再把 `vbaProject.bin` 轉成 base64，取代 `index.html` 裡 `VBA_PROJECT_B64` 的內容。
+
+- `check_explicit.py`：依 Excel `Option Explicit` 規則檢查每個程序的變數是否都有宣告。

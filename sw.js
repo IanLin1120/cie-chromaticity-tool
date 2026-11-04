@@ -1,7 +1,7 @@
 /* CIE 色度圖工具 — Service Worker
  * 讓安裝後的應用程式可以離線使用：頁面採「網路優先」（有新版會自動更新），
  * 函式庫與字型採「快取優先」。更新網頁內容時把 VERSION 加 1。 */
-const VERSION = 'cie-tool-v5';
+const VERSION = 'cie-tool-v6';
 const CORE = ['./', './index.html', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/favicon-64.png', './icons/apple-touch-icon.png'];
 const LIBS = [
