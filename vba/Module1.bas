@@ -8,11 +8,13 @@ Private Const C_IMG As String = "J2"   ' image selector (data validation list)
 Private Const C_BOX As String = "K2"   ' check cells (first char is a check mark)
 Private Const C_PTS As String = "L2"
 Private Const C_AVG As String = "M2"
+Private Const FONT_NAME As String = "Microsoft JhengHei"
 
 ' current image transform (set by Overlay)
 Private mVX0 As Double, mVX1 As Double, mVY0 As Double, mVY1 As Double
 Private mFL As Double, mFT As Double, mFW As Double, mFH As Double
 Private mIL As Double, mIT As Double, mIW As Double, mIH As Double
+Private mDot As Double, mBoxW As Double, mBoxCol As Long
 
 ' ---------- text helpers (Traditional Chinese via ChrW) ----------
 Private Function T_OOS() As String
@@ -109,6 +111,26 @@ Private Sub MarkBad(ByVal rg As Range, ByVal withFill As Boolean)
     If withFill Then rg.Interior.Color = RGB(253, 226, 225)
 End Sub
 
+Private Sub AddU(ByRef u As Range, ByVal c As Range)
+    If u Is Nothing Then
+        Set u = c
+    Else
+        Set u = Application.Union(u, c)
+    End If
+End Sub
+
+' fit columns A:G to their content (merged title rows are ignored by AutoFit), keep a little padding
+Private Sub FitColumns(ByVal ws As Worksheet)
+    Dim c As Long, w As Double
+    ws.Range("A:G").Columns.AutoFit
+    For c = 1 To 7
+        w = ws.Columns(c).ColumnWidth + 1.5
+        If w < 7 Then w = 7
+        If w > 40 Then w = 40
+        ws.Columns(c).ColumnWidth = w
+    Next c
+End Sub
+
 Private Sub ClearMark(ByVal rg As Range)
     rg.Font.Color = RGB(0, 0, 0)
     rg.Font.Bold = False
@@ -145,15 +167,19 @@ Public Sub RecalcAll()
     Application.EnableEvents = False
     Application.ScreenUpdating = False
     Application.Calculation = -4135   ' xlCalculationManual
+    On Error Resume Next
+    ws.DisplayPageBreaks = False      ' page breaks slow down shape operations
     On Error GoTo Fail
 
     Dim r As Long, lastR As Long, lastAny As Long, n As Long, nBad As Long
 
     ' 1) remove rows that no longer have x and y (deleted / cleared measurements)
+    Dim delRg As Range
     lastAny = LastRowIn(ws, 1, 7)
     For r = lastAny To R0 Step -1
-        If Trim$(CStr(ws.Cells(r, 3).Value)) = "" And Trim$(CStr(ws.Cells(r, 4).Value)) = "" Then ws.Rows(r).Delete
+        If Trim$(CStr(ws.Cells(r, 3).Value)) = "" And Trim$(CStr(ws.Cells(r, 4).Value)) = "" Then AddU delRg, ws.Rows(r)
     Next r
+    If Not delRg Is Nothing Then delRg.EntireRow.Delete
     lastR = LastRowIn(ws, 3, 4)
     If lastR < R0 Then n = 0 Else n = lastR - R0 + 1
 
@@ -167,40 +193,47 @@ Public Sub RecalcAll()
         ws.Range("D7").Formula = "=AVERAGE(B7:C7)"
     End If
 
-    ' 3) numbering, judgement formulas and highlighting
-    Dim x As Variant, y As Variant, bx As Boolean, by As Boolean, rowRg As Range
-    For r = R0 To lastR
-        ws.Cells(r, 1).Value = r - R0 + 1
-        x = ws.Cells(r, 3).Value: y = ws.Cells(r, 4).Value
-        bx = False: by = False
+    ' 3) numbering, judgement formulas and highlighting (whole block at once)
+    If n > 0 Then
+        Dim blk As Range, nums() As Variant, vals As Variant, i As Long
+        Dim x As Variant, y As Variant, bx As Boolean, by As Boolean
+        Dim badV As Range, badJ As Range, badG As Range
+        Set blk = ws.Range(ws.Cells(R0, 1), ws.Cells(lastR, 7))
+        ClearMark blk
+        blk.Font.Name = FONT_NAME
+        blk.Borders.LineStyle = 1                   ' xlContinuous
+        blk.Borders.Color = RGB(185, 174, 152)
+        blk.HorizontalAlignment = -4108             ' xlCenter
+        blk.VerticalAlignment = -4108
+        ws.Range(ws.Cells(R0, 3), ws.Cells(lastR, 4)).NumberFormat = "0.0000"
+        ReDim nums(1 To n, 1 To 1)
+        For i = 1 To n: nums(i, 1) = i: Next i
+        ws.Range(ws.Cells(R0, 1), ws.Cells(lastR, 1)).Value = nums
         If specOK Then
-            If IsNum(x) Then bx = (CDbl(x) < sx0 Or CDbl(x) > sx1)
-            If IsNum(y) Then by = (CDbl(y) < sy0 Or CDbl(y) > sy1)
-            ws.Cells(r, 5).Formula = "=IF(OR(C" & r & "<$B$6,C" & r & ">$C$6),""" & T_OOS() & """,""OK"")"
-            ws.Cells(r, 6).Formula = "=IF(OR(D" & r & "<$B$7,D" & r & ">$C$7),""" & T_OOS() & """,""OK"")"
-            ws.Cells(r, 7).Formula = "=IF(AND(E" & r & "=""OK"",F" & r & "=""OK""),""OK"",""NG"")"
+            ' R1C1 formulas are identical for every row, so one assignment fills the whole column correctly
+            ws.Range(ws.Cells(R0, 5), ws.Cells(lastR, 5)).FormulaR1C1 = "=IF(OR(RC3<R6C2,RC3>R6C3),""" & T_OOS() & """,""OK"")"
+            ws.Range(ws.Cells(R0, 6), ws.Cells(lastR, 6)).FormulaR1C1 = "=IF(OR(RC4<R7C2,RC4>R7C3),""" & T_OOS() & """,""OK"")"
+            ws.Range(ws.Cells(R0, 7), ws.Cells(lastR, 7)).FormulaR1C1 = "=IF(AND(RC5=""OK"",RC6=""OK""),""OK"",""NG"")"
+            ws.Range(ws.Cells(R0, 7), ws.Cells(lastR, 7)).Font.Bold = True
+            ws.Range(ws.Cells(R0, 7), ws.Cells(lastR, 7)).Font.Color = RGB(46, 125, 50)
+            vals = ws.Range(ws.Cells(R0, 3), ws.Cells(lastR, 4)).Value
+            For i = 1 To n
+                x = vals(i, 1): y = vals(i, 2)
+                bx = False: by = False
+                If IsNum(x) Then bx = (CDbl(x) < sx0 Or CDbl(x) > sx1)
+                If IsNum(y) Then by = (CDbl(y) < sy0 Or CDbl(y) > sy1)
+                r = R0 + i - 1
+                If bx Then AddU badV, ws.Cells(r, 3): AddU badJ, ws.Cells(r, 5)
+                If by Then AddU badV, ws.Cells(r, 4): AddU badJ, ws.Cells(r, 6)
+                If bx Or by Then AddU badG, ws.Cells(r, 7): nBad = nBad + 1
+            Next i
+            If Not badV Is Nothing Then MarkBad badV, True
+            If Not badJ Is Nothing Then MarkBad badJ, False
+            If Not badG Is Nothing Then MarkBad badG, False
         Else
-            ws.Range(ws.Cells(r, 5), ws.Cells(r, 7)).Value = "-"
+            ws.Range(ws.Cells(R0, 5), ws.Cells(lastR, 7)).Value = "-"
         End If
-        Set rowRg = ws.Range(ws.Cells(r, 1), ws.Cells(r, 7))
-        ClearMark rowRg
-        rowRg.Borders.LineStyle = 1                 ' xlContinuous
-        rowRg.Borders.Color = RGB(185, 174, 152)
-        rowRg.HorizontalAlignment = -4108           ' xlCenter
-        rowRg.VerticalAlignment = -4108
-        ws.Range(ws.Cells(r, 3), ws.Cells(r, 4)).NumberFormat = "0.0000"
-        If bx Then MarkBad ws.Cells(r, 3), True: MarkBad ws.Cells(r, 5), False
-        If by Then MarkBad ws.Cells(r, 4), True: MarkBad ws.Cells(r, 6), False
-        If specOK Then
-            If bx Or by Then
-                MarkBad ws.Cells(r, 7), False
-                nBad = nBad + 1
-            Else
-                ws.Cells(r, 7).Font.Bold = True
-                ws.Cells(r, 7).Font.Color = RGB(46, 125, 50)
-            End If
-        End If
-    Next r
+    End If
 
     ' 4) statistics
     Dim XR As String, YR As String
@@ -243,6 +276,8 @@ Public Sub RecalcAll()
         If nBad > 0 Then MarkBad ws.Range("B16"), False
     End If
 
+    FitColumns ws
+
     ' 5) redraw spec box / points / average on every diagram image
     On Error Resume Next
     DrawAll ws
@@ -261,7 +296,7 @@ Fail:
 End Sub
 
 ' redraw the diagram overlays only (used by the image selector and the check cells)
-Public Sub RefreshChart()
+Public Sub RefreshChart(Optional ByVal mainOnly As Boolean = False)
     Dim ws As Worksheet, evts As Boolean
     Set ws = FindDataSheet()
     If ws Is Nothing Then Exit Sub
@@ -269,13 +304,13 @@ Public Sub RefreshChart()
     Application.EnableEvents = False
     Application.ScreenUpdating = False
     On Error Resume Next
-    DrawAll ws
+    DrawAll ws, mainOnly
     Application.ScreenUpdating = True
     Application.EnableEvents = evts
 End Sub
 
 ' ---------- diagram overlays ----------
-Private Sub DrawAll(ByVal ws As Worksheet)
+Private Sub DrawAll(ByVal ws As Worksheet, Optional ByVal mainOnly As Boolean = False)
     Dim ps As Worksheet
     Set ps = ParamSheet()
     If ps Is Nothing Then Exit Sub
@@ -303,6 +338,13 @@ Private Sub DrawAll(ByVal ws As Worksheet)
         Next r
     End If
 
+    mDot = Gp("dot", 0.0095)
+    mBoxW = Gp("boxW", 3)
+    mBoxCol = RGB(Gp("boxR", 255), Gp("boxG", 45), Gp("boxB", 85))
+    On Error Resume Next
+    ws.DisplayPageBreaks = False
+    On Error GoTo 0
+
     Dim showBox As Boolean, showPts As Boolean, showAvg As Boolean, sel As String
     showBox = IsOn(ws.Range(C_BOX))
     showPts = IsOn(ws.Range(C_PTS))
@@ -313,7 +355,7 @@ Private Sub DrawAll(ByVal ws As Worksheet)
     Dim s As Worksheet, i As Long
     For Each s In ThisWorkbook.Worksheets
         For i = s.Shapes.Count To 1 Step -1
-            If Left$(s.Shapes(i).Name, 6) = "CIEov_" Then s.Shapes(i).Delete
+            If Left$(s.Shapes(i).Name, IIf(mainOnly, 8, 6)) = IIf(mainOnly, "CIEov_M_", "CIEov_") Then s.Shapes(i).Delete
         Next i
     Next s
 
@@ -338,6 +380,7 @@ Private Sub DrawAll(ByVal ws As Worksheet)
             Set img = Nothing
             Set img = s.Shapes("M_" & nm)
             If Not img Is Nothing Then
+                img.Left = s.Columns(9).Left + 2
                 If lbl = sel Then
                     img.Visible = -1
                     Overlay s, img, "CIEov_M_" & nm & "_", ps, k, showBox, showPts, showAvg, specOK, sx0, sx1, sy0, sy1, xs, ys, n
@@ -346,7 +389,7 @@ Private Sub DrawAll(ByVal ws As Worksheet)
                 End If
             End If
             Set img = Nothing
-            Set img = s.Shapes("G_" & nm)
+            If Not mainOnly Then Set img = s.Shapes("G_" & nm)
             If Not img Is Nothing Then
                 Overlay s, img, "CIEov_G_" & nm & "_", ps, k, showBox, showPts, showAvg, specOK, sx0, sx1, sy0, sy1, xs, ys, n
             End If
@@ -364,6 +407,18 @@ Private Function InView(ByVal x As Double, ByVal y As Double) As Boolean
     InView = (x >= mVX0 And x <= mVX1 And y >= mVY0 And y <= mVY1)
 End Function
 
+Private mNames() As String, mCnt As Long
+Private Sub Track(ByVal s As Shape)
+    If s Is Nothing Then Exit Sub
+    mCnt = mCnt + 1
+    If mCnt = 1 Then
+        ReDim mNames(1 To 64)
+    ElseIf mCnt > UBound(mNames) Then
+        ReDim Preserve mNames(1 To mCnt * 2)
+    End If
+    mNames(mCnt) = s.Name
+End Sub
+
 Private Sub Overlay(ByVal sh As Worksheet, ByVal img As Shape, ByVal pre As String, ByVal ps As Worksheet, ByVal k As Long, _
                     ByVal showBox As Boolean, ByVal showPts As Boolean, ByVal showAvg As Boolean, ByVal specOK As Boolean, _
                     ByVal sx0 As Double, ByVal sx1 As Double, ByVal sy0 As Double, ByVal sy1 As Double, _
@@ -375,12 +430,13 @@ Private Sub Overlay(ByVal sh As Worksheet, ByVal img As Shape, ByVal pre As Stri
     mFW = ps.Cells(k, 9).Value: mFH = ps.Cells(k, 10).Value
     mIL = img.Left: mIT = img.Top: mIW = img.Width: mIH = img.Height
     If mVX1 <= mVX0 Or mVY1 <= mVY0 Then Exit Sub
+    mCnt = 0
 
     ' spec box: four edges, each clipped to the visible range
     If showBox And specOK Then
         Dim lw As Double, col As Long
-        lw = Gp("boxW", 3) * mIW / 1000
-        col = RGB(Gp("boxR", 255), Gp("boxG", 45), Gp("boxB", 85))
+        lw = mBoxW * mIW / 1000
+        col = mBoxCol
         Edge sh, pre & "b1", sx0, sy0, sx1, sy0, lw, col
         Edge sh, pre & "b2", sx0, sy1, sx1, sy1, lw, col
         Edge sh, pre & "b3", sx0, sy0, sx0, sy1, lw, col
@@ -388,7 +444,7 @@ Private Sub Overlay(ByVal sh As Worksheet, ByVal img As Shape, ByVal pre As Stri
     End If
 
     Dim d As Double, i As Long, bad As Boolean, sumX As Double, sumY As Double, s As Shape
-    d = mIW * Gp("dot", 0.0095)
+    d = mIW * mDot
     For i = 1 To n
         sumX = sumX + xs(i): sumY = sumY + ys(i)
         If showPts And InView(xs(i), ys(i)) Then
@@ -405,6 +461,7 @@ Private Sub Overlay(ByVal sh As Worksheet, ByVal img As Shape, ByVal pre As Stri
                 End If
                 s.Line.Weight = 0.75
                 s.Placement = 3   ' xlFreeFloating
+                Track s
             End If
         End If
     Next i
@@ -424,7 +481,21 @@ Private Sub Overlay(ByVal sh As Worksheet, ByVal img As Shape, ByVal pre As Stri
                 s.Line.ForeColor.RGB = RGB(0, 0, 0)
                 s.Line.Weight = 1
                 s.Placement = 3
+                Track s
             End If
+        End If
+    End If
+
+    ' group this image's overlay shapes: the next redraw deletes one group instead of many shapes
+    If mCnt >= 2 Then
+        Dim arr() As Variant, j As Long, g As Shape
+        ReDim arr(1 To mCnt)
+        For j = 1 To mCnt: arr(j) = mNames(j): Next j
+        Set g = Nothing
+        Set g = sh.Shapes.Range(arr).Group
+        If Not g Is Nothing Then
+            g.Name = pre & "grp"
+            g.Placement = 3
         End If
     End If
 End Sub
@@ -458,10 +529,12 @@ Private Sub Edge(ByVal sh As Worksheet, ByVal nm As String, ByVal x0 As Double, 
     Set s = sh.Shapes.AddLine(p0x, p0y, p1x, p1y)
     If Not s Is Nothing Then
         s.Name = nm & "o": s.Line.ForeColor.RGB = RGB(0, 0, 0): s.Line.Weight = lw + 2.6 * mIW / 1000: s.Placement = 3
+        Track s
     End If
     Set s = Nothing
     Set s = sh.Shapes.AddLine(p0x, p0y, p1x, p1y)
     If Not s Is Nothing Then
         s.Name = nm & "c": s.Line.ForeColor.RGB = col: s.Line.Weight = lw: s.Placement = 3
+        Track s
     End If
 End Sub

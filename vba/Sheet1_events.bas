@@ -12,6 +12,9 @@ Private Sub Worksheet_SelectionChange(ByVal Target As Range)
 End Sub
 
 Private Sub Worksheet_Change(ByVal Target As Range)
-    If Intersect(Target, Me.Range("J2,B6:C7")) Is Nothing Then Exit Sub
-    Module1.RefreshChart
+    If Not Intersect(Target, Me.Range("B6:C7")) Is Nothing Then
+        Module1.RefreshChart            ' limits changed: every image
+    ElseIf Not Intersect(Target, Me.Range("J2")) Is Nothing Then
+        Module1.RefreshChart True       ' only the image on this sheet changes
+    End If
 End Sub
