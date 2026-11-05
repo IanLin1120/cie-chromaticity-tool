@@ -327,6 +327,7 @@ body.pip{min-height:100vh;}
               <div class="k">色純度</div><div class="v" id="vPur"></div><span></span>
               <div class="k">相關色溫 CCT</div><div class="v" id="vCct"></div><span></span>
               <div class="k">sRGB 色域</div><div class="v" id="vGamut"></div><span></span>
+              <div class="k">亮度</div><div class="v" id="vLum"></div><span></span>
             </div>
           </div>
           </div>
@@ -1039,7 +1040,8 @@ function viewFor(v, withPts){
 function baseOpts(){ const d = S.disp; return { showWl:d.wl, showSrgb:d.srgb, showIllum:d.illum, showKelly:d.kelly, showNames:d.names, showPlanck:d.planck, legend:d.legend, style:d.style, lang:d.lang }; }
 function rectOpt(){ return specValid() ? { ...S.spec, color:S.rect.color, lw:+S.rect.lw } : null; }
 function optsPt(){
-  const c = xyToRgb(S.pt.x, S.pt.y);
+  const pk = S.ptPick ? parseColor(S.ptPick.hex) : null;
+  const c = pk ? { r:pk[0], g:pk[1], b:pk[2], hex:S.ptPick.hex.toUpperCase() } : xyToRgb(S.pt.x, S.pt.y);
   return { ...baseOpts(), titleKey:'t_pt', point: c ? { x:S.pt.x, y:S.pt.y, hex:c.hex, r:c.r, g:c.g, b:c.b } : null };
 }
 function optsBox(){ return { ...baseOpts(), titleKey:'t_box', rect:S.boxShow2 ? rectOpt() : null }; }
@@ -1086,8 +1088,13 @@ function updatePt(){
   const okX = isFinite(x) && x >= 0 && x <= 1, okY = isFinite(y) && y > 0 && y <= 1 && (!isFinite(x) || x + y <= 1);
   $('ptX').classList.toggle('err', !okX); $('ptY').classList.toggle('err', !okY);
   if (!okX || !okY){ $('ptAlert').innerHTML = '<div class="alert bad">請輸入 0～1 之間的 x、y，且 y &gt; 0、x + y ≤ 1。</div>'; return; }
-  S.pt = { x, y }; save();
-  const c = xyToRgb(x, y), inside = inLocus(x, y);
+  S.pt = { x, y };
+  // 從取色器帶過來的 x、y：沿用取到的實際顏色（含亮度）；手動改了 x、y 就回到「同色度最亮表示」
+  if (S.ptPick && (Math.abs(S.ptPick.x - x) > 5e-5 || Math.abs(S.ptPick.y - y) > 5e-5)) S.ptPick = null;
+  save();
+  const bright = xyToRgb(x, y), inside = inLocus(x, y);
+  const pk = S.ptPick ? parseColor(S.ptPick.hex) : null;
+  const c = pk ? { r:pk[0], g:pk[1], b:pk[2], hex:S.ptPick.hex.toUpperCase(), inGamut:true } : bright;
   const lum = 0.299*c.r + 0.587*c.g + 0.114*c.b, fg = lum > 150 ? '#1b1b1b' : '#ffffff';
   const sw = $('ptSwatch'); sw.style.background = c.hex; sw.style.color = fg;
   $('ptHexBig').textContent = c.hex; $('ptSwSub').textContent = `x ${f4(x)}  ·  y ${f4(y)}`;
@@ -1109,6 +1116,9 @@ function updatePt(){
   const cct = mccamy(x, y);
   $('vCct').textContent = (x > 0.24 && x < 0.56 && y > 0.22 && y < 0.46 && cct > 1500 && cct < 30000) ? `約 ${Math.round(cct)} K（McCamy 近似）` : '—（只適用接近白色的色點）';
   $('vGamut').innerHTML = c.inGamut ? '<span style="color:var(--good)">在色域內</span>' : '<span style="color:var(--warn)">超出 sRGB 色域</span>';
+  $('vLum').innerHTML = pk ? `取色帶入的實際顏色，亮度 Y ${(S.ptPick.Y*100).toFixed(1)} %<br><span style="font-weight:500;color:var(--text-dim)">同色度最亮表示：<span class="sw" style="background:${bright.hex}"></span> ${bright.hex}</span>`
+                           : '<span style="font-weight:500;color:var(--text-dim)">同色度最亮表示（x、y 不含亮度資訊）</span>';
+  if (S.infoMode !== 'pick') $('infoSub').textContent = xySubText();
   let al = '';
   if (!inside) al += '<div class="alert bad">這個座標在光譜軌跡外面，不是實際可見的色度，請確認數值。</div>';
   else if (!c.inGamut) al += '<div class="alert warn">這個色點比螢幕（sRGB）能顯示的還要飽和，色碼是往 D65 白點方向移到色域邊界後最接近的可顯示顏色。</div>';
@@ -1800,7 +1810,7 @@ function colorInfo(c){
     rows.push(['主波長／純度', !dm ? '白點' : `${dm.comp ? '互補 ' : ''}${isFinite(dm.wl) ? dm.wl.toFixed(1) + ' nm' : '紫紅區'}　${(dm.purity*100).toFixed(1)}%`]);
     rows.push(['色溫 CCT', (x > 0.24 && x < 0.56 && y > 0.22 && y < 0.46 && cct > 1500 && cct < 30000) ? `約 ${Math.round(cct)} K` : '—']);
   } else rows.push(['CIE 1931 xy', '—（純黑沒有色度）']);
-  return { hex, r, g, b, x, y, lum:0.299*r + 0.587*g + 0.114*b, rows };
+  return { hex, r, g, b, x, y, Y, lum:0.299*r + 0.587*g + 0.114*b, rows };
 }
 function renderPick(root){
   const info = pickCur ? colorInfo(pickCur) : null;
@@ -1823,11 +1833,15 @@ function setPick(c){
   setInfoMode('pick');
   refreshPickViews();
 }
+function xySubText(){
+  return S.ptPick ? '這是取色器取到的實際顏色（含亮度）；手動修改 x、y 後會改回同色度最亮表示。'
+                  : '色碼為該色度在 sRGB 下的最亮表示（色度圖只有色度、沒有亮度）。';
+}
 function setInfoMode(m){
   S.infoMode = m; save();
   document.querySelectorAll('#infoMode [data-m]').forEach(b => b.classList.toggle('active', b.dataset.m === m));
   $('infoXY').hidden = m !== 'xy'; $('infoPick').hidden = m !== 'pick';
-  $('infoSub').textContent = m === 'xy' ? '色碼為該色度在 sRGB 下的最亮表示（色度圖只有色度、沒有亮度）。'
+  $('infoSub').textContent = m === 'xy' ? xySubText()
                                         : '螢幕上取到的實際顏色；點任一列即可複製，「帶到色度圖」會把 xy 填到上面。';
 }
 function savePickHist(){ try{ localStorage.setItem(PICK_KEY, JSON.stringify(pickHist)); }catch(e){} }
@@ -1848,7 +1862,8 @@ function sendPickToDiagram(msgEl){
   const info = pickCur ? colorInfo(pickCur) : null;
   if (!info || info.x === null){ if (msgEl) msgEl.textContent = '這個顏色沒有色度座標（純黑）。'; return; }
   $('ptX').value = info.x.toFixed(4); $('ptY').value = info.y.toFixed(4);
-  switchTab('pt'); updatePt(); setInfoMode('xy');
+  S.ptPick = { x:+info.x.toFixed(4), y:+info.y.toFixed(4), hex:info.hex, Y:info.Y };
+  switchTab('pt'); setInfoMode('xy'); updatePt();
   if (msgEl) msgEl.textContent = `已帶到色度圖：x ${info.x.toFixed(4)}，y ${info.y.toFixed(4)}`;
   else toast('success', '已帶到色度圖', `x ${info.x.toFixed(4)}，y ${info.y.toFixed(4)}`);
 }
