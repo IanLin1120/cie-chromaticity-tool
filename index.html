@@ -206,6 +206,27 @@ html[data-style="glass"] .toast{background:var(--surface-3);}
 .spinner{width:15px;height:15px;border-radius:50%;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;animation:spin .7s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .footer-note{text-align:center;color:var(--text-faint);font-size:11.5px;margin-top:24px;}
+/* 取色器 */
+.pk{padding:12px;display:flex;flex-direction:column;gap:10px;box-sizing:border-box;}
+.pk-top{display:flex;gap:8px;}
+.pk-top .btn{flex:1;}
+.pk-sw{border-radius:14px;min-height:92px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:1px solid rgba(0,0,0,.15);box-shadow:var(--shadow-md);font-family:var(--mono);font-weight:800;background:repeating-conic-gradient(#cfcfcf 0 25%,#efefef 0 50%) 0 0/16px 16px;transition:background .15s;}
+.pk-hex{font-size:24px;letter-spacing:1px;}
+.pk-sub{font-size:11.5px;opacity:.85;font-family:var(--font);font-weight:600;text-align:center;padding:0 8px;}
+.pk-rows{display:flex;flex-direction:column;border:1px solid var(--border-soft);border-radius:12px;overflow:hidden;background:var(--surface);}
+.pk-row{display:grid;grid-template-columns:92px 1fr auto;gap:8px;align-items:center;padding:6px 10px;font-size:12px;border-bottom:1px solid var(--border-soft);cursor:pointer;}
+.pk-row:last-child{border-bottom:none;}
+.pk-row:hover{background:var(--accent-soft);}
+.pk-k{color:var(--text-dim);font-weight:700;}
+.pk-v{font-family:var(--mono);font-weight:700;word-break:break-all;}
+.pk-c{font-size:10.5px;color:var(--text-faint);font-weight:700;white-space:nowrap;}
+.pk-row.copied .pk-c{color:var(--good);}
+.pk-hist{display:flex;flex-wrap:wrap;gap:6px;}
+.pk-h{width:26px;height:26px;border-radius:7px;border:1px solid rgba(0,0,0,.25);cursor:pointer;padding:0;}
+.pk-h.on{outline:2px solid var(--accent);outline-offset:2px;}
+.pk-msg{font-size:11.5px;color:var(--text-dim);min-height:16px;}
+.pk-empty{padding:14px;text-align:center;color:var(--text-faint);font-size:12px;}
+body.pip{min-height:100vh;}
 </style>
 </head>
 <body>
@@ -255,6 +276,20 @@ html[data-style="glass"] .toast{background:var(--surface-3);}
           <div class="hint" style="margin:12px 0 6px;">常用色點</div>
           <div class="chips" id="ptChips"></div>
           <div id="ptAlert"></div>
+          <div class="divider" style="margin:16px 0 12px;"></div>
+          <div class="row">
+            <button class="btn btn-primary" id="btnPicker" type="button"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/><rect x="12" y="10" width="7" height="6" rx="1" fill="currentColor"/></svg>懸浮取色器</button>
+            <button class="btn btn-ghost" id="btnPickHere" type="button"><svg viewBox="0 0 24 24" fill="none"><path d="m14.5 4.5 5 5M17 2l5 5-3 3-5-5 3-3ZM14 8l-9.5 9.5L3 21l3.5-1.5L16 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>從螢幕取色</button>
+          </div>
+          <div class="hint" style="margin-top:8px;">「懸浮取色器」會開一個永遠在最上層的小視窗，可以放在其他軟體上方，按「取色」再點螢幕上任一位置，就會列出這個顏色的所有代碼。需要 Edge／Chrome。</div>
+        </div>
+
+        <div class="card" id="pickCard" hidden>
+          <div class="card-head"><div>
+            <div class="card-title">螢幕取色結果</div>
+            <div class="card-sub">點任一列即可複製；「帶到色度圖」會把這個顏色的 xy 填到上面。</div>
+          </div></div>
+          <div class="pk" style="padding:0;" id="pickHere"></div>
         </div>
 
         <div class="card">
@@ -1709,6 +1744,147 @@ updatePt(); readSpec(); renderData();
 const fontsReady = document.fonts ? Promise.all([document.fonts.load('400 16px "Noto Sans TC"'), document.fonts.load('700 16px "JetBrains Mono"')]).catch(() => {}) : Promise.resolve();
 fontsReady.then(() => { fillCache.clear(); schedule(); });
 schedule();
+/* =========================================================================
+ * 取色器：螢幕取色（EyeDropper）＋ 懸浮視窗（Document Picture-in-Picture，永遠在最上層）
+ * ========================================================================= */
+const PICK_KEY = 'cieTool.pickHistory';
+let pickHist = []; try{ pickHist = JSON.parse(localStorage.getItem(PICK_KEY) || '[]'); }catch(e){}
+let pickCur = pickHist[0] || null, pickWin = null;
+function parseColor(c){
+  let m = /^#?([0-9a-f]{6})$/i.exec(String(c || '').trim());
+  if (m){ const n = parseInt(m[1], 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+  m = /rgba?\(\s*(\d+)[ ,]+(\d+)[ ,]+(\d+)/i.exec(String(c || ''));
+  return m ? [+m[1], +m[2], +m[3]] : null;
+}
+function colorInfo(c){
+  const rgb = parseColor(c); if (!rgb) return null;
+  const [r, g, b] = rgb, hex = '#' + rgb.map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+  const lin = v => { v /= 255; return v <= 0.04045 ? v/12.92 : Math.pow((v + 0.055)/1.055, 2.4); };
+  const R = lin(r), G = lin(g), B = lin(b);
+  const X = 0.4124564*R + 0.3575761*G + 0.1804375*B, Y = 0.2126729*R + 0.7151522*G + 0.0721750*B, Z = 0.0193339*R + 0.1191920*G + 0.9503041*B;
+  const sum = X + Y + Z, x = sum > 1e-9 ? X/sum : null, y = sum > 1e-9 ? Y/sum : null;
+  const f = t => t > 0.008856 ? Math.cbrt(t) : 7.787*t + 16/116;
+  const fx = f(X/0.95047), fy = f(Y), fz = f(Z/1.08883);
+  const z0 = v => Math.abs(v) < 0.005 ? 0 : v;   // 避免顯示 -0.00
+  const L = z0(116*fy - 16), la = z0(500*(fx - fy)), lb = z0(200*(fy - fz));
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), dl = mx - mn;
+  let hh = 0; if (dl){ hh = mx === r ? ((g - b)/dl) % 6 : mx === g ? (b - r)/dl + 2 : (r - g)/dl + 4; hh = (hh*60 + 360) % 360; }
+  const hsvS = mx ? dl/mx*100 : 0, hsvV = mx/255*100;
+  const k = 1 - mx/255, cm = v => k >= 1 ? 0 : (1 - v/255 - k)/(1 - k)*100;
+  const [eh, es, el] = rgbToOfficeHsl(r, g, b);
+  const rows = [
+    ['HEX 色碼', hex],
+    ['RGB', `${r}, ${g}, ${b}`],
+    ['Excel 自訂色彩', `紅 ${r}　綠 ${g}　藍 ${b}`, `${r}\t${g}\t${b}`],
+    ['Excel HSL', `色調 ${eh}　飽和度 ${es}　亮度 ${el}`, `${eh}\t${es}\t${el}`],
+    ['VBA 色彩', `RGB(${r}, ${g}, ${b})`],
+    ['VBA 色彩值', String(r + g*256 + b*65536)],
+    ['CSS', `rgb(${r} ${g} ${b})`],
+    ['HSV', `${hh.toFixed(0)}°, ${hsvS.toFixed(0)}%, ${hsvV.toFixed(0)}%`],
+    ['CMYK', `${cm(r).toFixed(0)}%, ${cm(g).toFixed(0)}%, ${cm(b).toFixed(0)}%, ${(k*100).toFixed(0)}%`],
+  ];
+  if (x !== null){
+    const [u, v] = uvp(x, y), dm = dominant(x, y), cct = mccamy(x, y);
+    rows.push(['CIE 1931 xy', `x ${x.toFixed(4)}　y ${y.toFixed(4)}`, `${x.toFixed(4)}\t${y.toFixed(4)}`]);
+    rows.push(['CIE XYZ', `${(X*100).toFixed(2)}, ${(Y*100).toFixed(2)}, ${(Z*100).toFixed(2)}`]);
+    rows.push(['CIE 1976 u′v′', `u′ ${u.toFixed(4)}　v′ ${v.toFixed(4)}`, `${u.toFixed(4)}\t${v.toFixed(4)}`]);
+    rows.push(['CIELAB', `L ${L.toFixed(2)}　a ${la.toFixed(2)}　b ${lb.toFixed(2)}`, `${L.toFixed(2)}\t${la.toFixed(2)}\t${lb.toFixed(2)}`]);
+    rows.push(['主波長／純度', !dm ? '白點' : `${dm.comp ? '互補 ' : ''}${isFinite(dm.wl) ? dm.wl.toFixed(1) + ' nm' : '紫紅區'}　${(dm.purity*100).toFixed(1)}%`]);
+    rows.push(['色溫 CCT', (x > 0.24 && x < 0.56 && y > 0.22 && y < 0.46 && cct > 1500 && cct < 30000) ? `約 ${Math.round(cct)} K` : '—']);
+  } else rows.push(['CIE 1931 xy', '—（純黑沒有色度）']);
+  return { hex, r, g, b, x, y, lum:0.299*r + 0.587*g + 0.114*b, rows };
+}
+function renderPick(root){
+  const info = pickCur ? colorInfo(pickCur) : null;
+  const fg = info && info.lum > 150 ? '#1b1b1b' : '#ffffff';
+  const sw = info ? `<div class="pk-sw" style="background:${info.hex};color:${fg}"><div class="pk-hex">${info.hex}</div><div class="pk-sub">RGB ${info.r}, ${info.g}, ${info.b}${info.x !== null ? `　·　x ${info.x.toFixed(4)}　y ${info.y.toFixed(4)}` : ''}</div></div>`
+                  : `<div class="pk-sw"><div class="pk-sub" style="color:#333">按「取色」，再點螢幕上任一位置</div></div>`;
+  const rows = info ? `<div class="pk-rows">${info.rows.map(([k, v, cp]) => `<div class="pk-row" data-copy="${esc(cp ?? v)}"><span class="pk-k">${esc(k)}</span><span class="pk-v">${esc(v)}</span><span class="pk-c">複製</span></div>`).join('')}</div>` : '';
+  const hist = pickHist.length ? `<div class="hint" style="margin-bottom:-4px;">最近取的顏色（點一下再看一次）</div><div class="pk-hist">${pickHist.map(h => `<button class="pk-h${h === pickCur ? ' on' : ''}" data-hex="${h}" title="${h}" style="background:${h}"></button>`).join('')}</div>` : '';
+  root.querySelector('.pk-body').innerHTML = sw + rows + hist;
+}
+function pickShell(withPick){
+  return `<div class="pk-top">${withPick ? `<button class="btn btn-primary" data-pk="pick" type="button">🎯 取色</button>` : ''}<button class="btn btn-ghost" data-pk="send" type="button">帶到色度圖</button></div><div class="pk-body"></div><div class="pk-msg"></div>`;
+}
+function setPick(c){
+  const info = colorInfo(c); if (!info) return;
+  pickCur = info.hex;
+  pickHist = [info.hex, ...pickHist.filter(h => h !== info.hex)].slice(0, 18);
+  try{ localStorage.setItem(PICK_KEY, JSON.stringify(pickHist)); }catch(e){}
+  refreshPickViews();
+}
+function refreshPickViews(){
+  if (pickCur || pickHist.length){ $('pickCard').hidden = false; renderPick($('pickHere')); }
+  if (pickWin && !pickWin.closed) renderPick(pickWin.document.querySelector('.pk'));
+}
+async function eyedrop(win, msgEl){
+  const ED = win.EyeDropper || window.EyeDropper;
+  if (!ED){ if (msgEl) msgEl.textContent = '這個瀏覽器不支援螢幕取色，請改用 Edge 或 Chrome。'; else toast('error', '不支援螢幕取色', '請改用 Edge 或 Chrome'); return; }
+  try{
+    const res = await new ED().open();
+    setPick(res.sRGBHex);
+    if (msgEl) msgEl.textContent = '';
+  }catch(e){ if (msgEl) msgEl.textContent = '已取消取色（按 Esc 也會取消）。'; }
+}
+function sendPickToDiagram(msgEl){
+  const info = pickCur ? colorInfo(pickCur) : null;
+  if (!info || info.x === null){ if (msgEl) msgEl.textContent = '這個顏色沒有色度座標（純黑）。'; return; }
+  $('ptX').value = info.x.toFixed(4); $('ptY').value = info.y.toFixed(4);
+  switchTab('pt'); updatePt();
+  if (msgEl) msgEl.textContent = `已帶到色度圖：x ${info.x.toFixed(4)}，y ${info.y.toFixed(4)}`;
+  else toast('success', '已帶到色度圖', `x ${info.x.toFixed(4)}，y ${info.y.toFixed(4)}`);
+}
+function bindPick(doc, win, root){
+  doc.addEventListener('click', e => {
+    const b = e.target.closest('[data-pk]'), row = e.target.closest('.pk-row'), h = e.target.closest('.pk-h');
+    if (!root.contains(e.target)) return;
+    const msg = root.querySelector('.pk-msg');
+    if (b && b.dataset.pk === 'pick') eyedrop(win, msg);
+    else if (b && b.dataset.pk === 'send') sendPickToDiagram(win === window ? null : msg);
+    else if (h){ pickCur = h.dataset.hex; refreshPickViews(); }
+    else if (row){
+      const t = row.dataset.copy;
+      (win.navigator.clipboard ? win.navigator.clipboard.writeText(t) : Promise.reject()).then(() => {
+        row.classList.add('copied'); row.querySelector('.pk-c').textContent = '已複製';
+        setTimeout(() => { row.classList.remove('copied'); row.querySelector('.pk-c').textContent = '複製'; }, 1200);
+      }).catch(() => { if (msg) msg.textContent = '無法複製，請手動選取文字。'; });
+    }
+  });
+}
+async function openPicker(){
+  if (pickWin && !pickWin.closed){ try{ pickWin.focus(); }catch(e){} return; }
+  let win;
+  if ('documentPictureInPicture' in window){
+    try{ win = await documentPictureInPicture.requestWindow({ width:360, height:640 }); }catch(e){ win = null; }
+  }
+  const floating = !!win;
+  if (!win){
+    win = window.open('', 'ciePicker', 'popup=yes,width=380,height=680');
+    if (!win){ toast('error', '無法開啟視窗', '請允許這個網站開啟彈出視窗'); return; }
+    win.document.open(); win.document.write('<!DOCTYPE html><html><head></head><body></body></html>'); win.document.close();
+  }
+  const doc = win.document;
+  const css = [...document.querySelectorAll('style')].map(x => x.textContent).join('\n');
+  doc.head.innerHTML = `<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CIE 取色器</title>`
+    + `<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet"><style>${css}</style>`;
+  doc.documentElement.lang = 'zh-Hant';
+  doc.documentElement.dataset.theme = document.documentElement.dataset.theme;
+  doc.documentElement.dataset.style = document.documentElement.dataset.style;
+  doc.body.className = 'pip';
+  doc.body.innerHTML = `<div class="pk">${pickShell(true)}</div>`;
+  const root = doc.querySelector('.pk');
+  if (!floating) root.querySelector('.pk-msg').textContent = '這個瀏覽器不支援懸浮視窗，已改用一般小視窗（不會固定在最上層）。';
+  bindPick(doc, win, root);
+  pickWin = win;
+  renderPick(root);
+  win.addEventListener('pagehide', () => { pickWin = null; });
+}
+$('btnPicker').addEventListener('click', openPicker);
+$('btnPickHere').addEventListener('click', () => eyedrop(window, null));
+$('pickHere').innerHTML = pickShell(false);
+bindPick(document, window, $('pickHere'));
+if (pickCur) refreshPickViews();
+
 /* ---------- 安裝成應用程式（PWA） ---------- */
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW', err)));
@@ -1720,7 +1896,7 @@ $('btnInstall').addEventListener('click', async () => {
   installEvt.prompt(); await installEvt.userChoice.catch(() => {}); installEvt = null; $('btnInstall').hidden = true;
 });
 window.addEventListener('appinstalled', () => { $('btnInstall').hidden = true; toast('success', '已安裝', '可以從桌面或開始功能表開啟「CIE 色度圖工具」'); });
-window.CIE = { S, D, KELLY, planckXY, xyToRgb, dominant, inLocus, renderDiagram, layoutFor, makeImage, buildExcel, setGrid };
+window.CIE = { colorInfo, setPick, S, D, KELLY, planckXY, xyToRgb, dominant, inLocus, renderDiagram, layoutFor, makeImage, buildExcel, setGrid };
 </script>
 </body>
 </html>
