@@ -920,9 +920,19 @@ function renderDiagram(P, lay, o){
       if (len < 1e-6 || wl === 700){ nx = px - cx; ny = py - cy; len = Math.hypot(nx, ny); }
       nx /= len; ny /= len;
       if (nx*(px-cx) + ny*(py-cy) < 0){ nx = -nx; ny = -ny; }
-      P.line(px, py, px + nx*10*u, py + ny*10*u, { stroke:'rgba(255,255,255,0.85)', lw:1.4*u });
-      const lx = px + nx*16*u, ly = py + ny*16*u;
-      P.text(String(wl), lx, ly, { size:16*u, color:'rgba(255,255,255,0.85)', mono:true, align: nx > 0.35 ? 'left' : nx < -0.35 ? 'right' : 'center', base: ny > 0.35 ? 'top' : ny < -0.35 ? 'bottom' : 'middle' });
+      // 標籤若會超出繪圖區（蓋到座標刻度數字），就改放在光譜軌跡內側
+      const fo = { size:16*u, mono:true }, tw = measure(String(wl), fo), th = 16*u;
+      const box = (nx, ny) => {
+        const lx = px + nx*16*u, ly = py + ny*16*u;
+        const al = nx > 0.35 ? 'left' : nx < -0.35 ? 'right' : 'center', bs = ny > 0.35 ? 'top' : ny < -0.35 ? 'bottom' : 'middle';
+        const x0 = al === 'left' ? lx : al === 'right' ? lx - tw : lx - tw/2, y0 = bs === 'top' ? ly : bs === 'bottom' ? ly - th : ly - th/2;
+        return { lx, ly, al, bs, out: x0 < L + 2*u || x0 + tw > L + pw - 2*u || y0 < T + 2*u || y0 + th > T + ph - 2*u };
+      };
+      let bx = box(nx, ny), inside = false;
+      if (bx.out){ const b2 = box(-nx, -ny); if (!b2.out){ nx = -nx; ny = -ny; bx = b2; inside = true; } }
+      P.line(px, py, px + nx*10*u, py + ny*10*u, { stroke: inside ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.85)', lw:1.4*u });
+      if (inside) P.text(String(wl), bx.lx + 1.2*u, bx.ly + 1.2*u, { ...fo, color:'rgba(0,0,0,0.55)', align:bx.al, base:bx.bs });
+      P.text(String(wl), bx.lx, bx.ly, { ...fo, color: inside ? '#ffffff' : 'rgba(255,255,255,0.85)', weight: inside ? 700 : 400, align:bx.al, base:bx.bs });
     }
     if (inView(0.33, 0.06)) P.text('nm', X(0.30), Y(0.03), { size:15*u, color:'rgba(255,255,255,0.5)', italic:true, align:'center', base:'middle' });
   }
