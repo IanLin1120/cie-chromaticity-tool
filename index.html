@@ -234,6 +234,18 @@ html[data-style="glass"] .toast{background:var(--surface-3);}
 .pk-msg{font-size:11.5px;color:var(--text-dim);min-height:16px;}
 .pk-empty{padding:14px;text-align:center;color:var(--text-faint);font-size:12px;}
 body.pip{min-height:100vh;}
+/* 規格辨識 */
+.ocr-res{margin-top:12px;display:flex;flex-direction:column;gap:10px;}
+.ocr-thumb{display:block;max-width:100%;max-height:150px;border-radius:10px;border:1px solid var(--border-soft);object-fit:contain;background:#fff;}
+.ocr-grid{display:grid;grid-template-columns:auto repeat(3,minmax(0,1fr));gap:6px 8px;align-items:center;font-size:12.5px;}
+.ocr-grid .h{font-weight:800;color:var(--text-dim);text-align:center;font-size:12px;}
+.ocr-grid .k{font-weight:800;white-space:nowrap;}
+.ocr-grid .input{padding:7px 8px;font-size:12.8px;}
+.prog{height:6px;border-radius:99px;background:var(--surface-3);overflow:hidden;}
+.prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .2s;}
+details.raw summary{cursor:pointer;font-size:12px;color:var(--text-dim);font-weight:700;}
+details.raw pre{font-size:11.5px;white-space:pre-wrap;word-break:break-all;background:var(--surface-2);padding:8px 10px;border-radius:8px;max-height:220px;overflow:auto;margin:8px 0 0;}
+.chart-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;}
 </style>
 </head>
 <body>
@@ -351,14 +363,36 @@ body.pip{min-height:100vh;}
       <div>
         <div class="card">
           <div class="card-head"><div>
+            <div class="card-title"><span class="badge-step">0</span>從規格書帶入（圖片或表格）</div>
+            <div class="card-sub">在這一頁按 <b>Ctrl+V</b> 貼上規格書截圖或複製的表格，或把圖片拖進來。會自動辨識色度 x、y 與亮度的 Min／Typ／Max，確認後再套用到下方規格。</div>
+          </div></div>
+          <div class="dropzone" id="ocrDz">
+            <input type="file" id="ocrFile" accept="image/*">
+            <h4>貼上（Ctrl+V）、拖曳或點擊選擇規格圖片</h4>
+            <p>PNG／JPG 截圖；也可以直接貼上從 Word／Excel／PDF 複製的表格</p>
+          </div>
+          <details class="raw" style="margin-top:10px;"><summary>或在這裡貼上表格文字</summary>
+            <textarea class="input" id="ocrText" style="min-height:90px;margin-top:8px;" placeholder="Brightness	Lbr	Note 1	100	120	-	cd/m2&#10;C.I.E. (x)	0.46	0.50	0.54&#10;(y)	0.45	0.49	0.53"></textarea>
+            <button class="btn btn-ghost btn-sm" id="btnOcrText" type="button" style="margin-top:8px;">辨識文字</button>
+          </details>
+          <div id="ocrOut"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div>
             <div class="card-title"><span class="badge-step">1</span>規格上下限</div>
-            <div class="card-sub">這組上下限也會帶到第三頁做量測判定。</div>
+            <div class="card-sub">這組上下限也會帶到第三頁做量測判定（亮度可只填下限）。</div>
           </div></div>
           <div class="field-grid">
             <div class="field"><label for="spX0">x 下限</label><input class="input mono" id="spX0" type="number" step="0.0001"></div>
             <div class="field"><label for="spX1">x 上限</label><input class="input mono" id="spX1" type="number" step="0.0001"></div>
             <div class="field"><label for="spY0">y 下限</label><input class="input mono" id="spY0" type="number" step="0.0001"></div>
             <div class="field"><label for="spY1">y 上限</label><input class="input mono" id="spY1" type="number" step="0.0001"></div>
+          </div>
+          <div class="field-grid" style="margin-top:12px;grid-template-columns:repeat(3,1fr);">
+            <div class="field"><label for="spL0">亮度下限 cd/m²</label><input class="input mono" id="spL0" type="number" step="any"></div>
+            <div class="field"><label for="spLt">亮度 Typ（可空白）</label><input class="input mono" id="spLt" type="number" step="any"></div>
+            <div class="field"><label for="spL1">亮度上限（可空白）</label><input class="input mono" id="spL1" type="number" step="any"></div>
           </div>
           <div class="field-grid" style="margin-top:12px;">
             <div class="field"><label for="rcColor">框線顏色</label><div class="row"><input type="color" id="rcColor"><span class="hint" id="rcColorTxt"></span></div></div>
@@ -424,7 +458,7 @@ body.pip{min-height:100vh;}
     <div class="card">
       <div class="card-head">
         <div><div class="card-title"><span class="badge-step">1</span>規格（自第二頁帶入）與量測資料</div>
-        <div class="card-sub">上傳 Excel／CSV，或從 Excel 複製 x、y 兩欄（可含編號欄）直接貼上。超出上下限的數值會標成紅色。</div></div>
+        <div class="card-sub">上傳 Excel／CSV，或從 Excel 複製 x、y 兩欄（可含編號欄、亮度欄）直接貼上。超出上下限、亮度低於下限的數值會標成紅色。</div></div>
         <button class="btn btn-soft btn-sm" id="btnGoSpec">到第二頁修改規格</button>
       </div>
       <div class="spec-strip" id="specStrip"></div>
@@ -461,10 +495,28 @@ body.pip{min-height:100vh;}
       <div>
         <div class="card">
           <div class="chart-head">
-            <div><div class="card-title">色度圖 · 規格框與量測點</div><div class="card-sub">顯示範圍與輸出設定在圖的下方，跟第二頁分開設定。</div></div>
-            <div class="toggles" data-toggles></div>
+            <div class="chart-top">
+              <div><div class="card-title" id="chartTitle3">色度圖 · 規格框與量測點</div><div class="card-sub" id="chartSub3">顯示範圍與輸出設定在圖的下方，跟第二頁分開設定。</div></div>
+              <div class="segbar" id="chartKind"><button class="seg-btn" data-k="cie" type="button">色度分布</button><button class="seg-btn" data-k="lum" type="button">亮度分布</button></div>
+            </div>
+            <div class="toggles" data-toggles id="cieToggles3"></div>
+            <div class="toggles" id="lumToggles3">
+              <span class="lbl">圖面文字</span><select class="mini" data-disp-sel="lang"><option value="zh">中文</option><option value="en">English</option></select><span class="sep"></span>
+              <span class="lbl">圖表</span><select class="mini" id="lumType"><option value="hist">直方圖（分布）</option><option value="run">推移圖（依序號）</option></select>
+              <span class="lbl">組數</span><select class="mini" id="lumBins"><option value="auto">自動</option><option value="5">5</option><option value="8">8</option><option value="10">10</option><option value="12">12</option><option value="15">15</option><option value="20">20</option><option value="25">25</option></select>
+            </div>
           </div>
           <div class="plot-wrap"><canvas id="cv3"></canvas><div class="readout"></div></div>
+          <div class="toggles" id="lumCtl3" style="margin-top:12px;padding:9px 11px;border:1px solid var(--border-soft);border-radius:12px;background:var(--surface-2);">
+            <span class="lbl">圖上標示</span>
+            <label><input type="checkbox" data-lumv="normal">常態分布曲線</label>
+            <label><input type="checkbox" data-lumv="mean">平均線</label>
+            <label><input type="checkbox" data-lumv="typ">Typ 線</label>
+            <label><input type="checkbox" data-lumv="stat">統計框</label>
+            <label><input type="checkbox" data-lumv="incSpec">範圍包含規格下限</label>
+            <span class="hint" style="font-weight:500;">（亮度只看下限：低於下限標紅；也會套用到輸出的圖片與 Excel）</span>
+          </div>
+          <div id="cieCtl3">
           <div class="toggles" style="margin-top:12px;padding:9px 11px;border:1px solid var(--border-soft);border-radius:12px;background:var(--surface-2);">
             <span class="lbl">圖上標示</span>
             <label><input type="checkbox" id="showBox3">顯示規格框</label>
@@ -492,6 +544,7 @@ body.pip{min-height:100vh;}
             <div class="field"><label for="vwY03">y 起</label><input class="input mono" id="vwY03" type="number" step="0.001"></div>
             <div class="field"><label for="vwY13">y 迄</label><input class="input mono" id="vwY13" type="number" step="0.001"></div>
           </div>
+          </div>
           <div class="divider" style="margin:16px 0;"></div>
           <div class="field"><label>輸出圖片</label>
             <div class="segbar" id="imgFmt3"><button class="seg-btn active" data-f="png">PNG</button><button class="seg-btn" data-f="jpg">JPG</button><button class="seg-btn" data-f="svg">SVG</button></div>
@@ -501,12 +554,15 @@ body.pip{min-height:100vh;}
             <div class="field"><label for="imgName3">檔名</label><input class="input" id="imgName3" type="text"></div>
           </div>
           <div class="hint" style="margin-top:8px;" id="imgHint3"></div>
-          <button class="btn btn-primary btn-block" id="btnImg3" style="margin-top:12px;"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>下載圖片</button>
+          <div class="row" style="margin-top:12px;flex-wrap:nowrap;">
+            <button class="btn btn-primary" id="btnImg3" style="flex:1;"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>下載圖片</button>
+            <button class="btn btn-ghost" id="btnImg3Both" title="中文版與英文版各下載一張">中英兩版</button>
+          </div>
         </div>
         <div class="card">
           <div class="card-head"><div>
             <div class="card-title"><span class="badge-step">3</span>輸出 Excel</div>
-            <div class="card-sub">內容：色度圖（規格框＋量測點，依上方的顯示範圍與圖面語言）圖片、規格上下限、統計（平均／最大／最小／標準差）、全部量測數值與判定，超規的格子標紅。</div>
+            <div class="card-sub">內容：色度圖（規格框＋量測點，依上方的顯示範圍與圖面語言）圖片、規格上下限、統計（平均／最大／最小／標準差）、全部量測數值與判定，超規的格子標紅。有亮度資料時另外加一張「亮度量測」工作表（規格下限、統計、Cpk、判定、亮度分布圖與推移圖）。</div>
           </div></div>
           <div class="field"><label for="xlName">檔名</label><input class="input" id="xlName" type="text"></div>
           <label class="toggles" style="margin-top:12px;cursor:pointer;"><input type="checkbox" id="xlMacro">加入「重新計算」巨集按鈕（輸出 .xlsm）</label>
@@ -559,9 +615,13 @@ function planckXY(T){
 }
 const I18N = {
   zh:{ t_pt:'CIE 1931 xy 色度圖', t_box:'CIE 1931 xy 色度圖', t_data:'CIE 1931 xy 色度圖', obs:'CIE 1931 2° 標準觀察者',
-       spec:'規格框', meas:n => `量測點（${n}）`, bad:n => `超規點（${n}）`, avg:'平均', max:'最大', min:'最小', srgb:'sRGB 色域', planck:'黑體軌跡', illum:'標準光源' },
+       spec:'規格框', meas:n => `量測點（${n}）`, bad:n => `超規點（${n}）`, avg:'平均', max:'最大', min:'最小', srgb:'sRGB 色域', planck:'黑體軌跡', illum:'標準光源',
+       t_lum:'亮度分布圖', t_run:'亮度推移圖', lobs:'單位：cd/m²', lax:'亮度 L (cd/m²)', cnt:'數量', smp:'樣品序號', lsl:'下限', usl:'上限', typ:'Typ', mean:'平均',
+       n:'筆數', sd:'標準差', cpk:'Cpk', below:'未達下限', above:'超過上限', yield:'合格率', normal:'常態分布', nolum:'沒有亮度資料：請在上方「亮度欄」選擇亮度所在的欄位' },
   en:{ t_pt:'CIE 1931 xy Chromaticity Diagram', t_box:'CIE 1931 xy Chromaticity Diagram', t_data:'CIE 1931 xy Chromaticity Diagram', obs:'CIE 1931 2° Standard Observer',
-       spec:'Spec box', meas:n => `Measured (${n})`, bad:n => `Out of spec (${n})`, avg:'Mean', max:'Max', min:'Min', srgb:'sRGB gamut', planck:'Planckian locus', illum:'Illuminant' }
+       spec:'Spec box', meas:n => `Measured (${n})`, bad:n => `Out of spec (${n})`, avg:'Mean', max:'Max', min:'Min', srgb:'sRGB gamut', planck:'Planckian locus', illum:'Illuminant',
+       t_lum:'Luminance Distribution', t_run:'Luminance Trend', lobs:'Unit: cd/m²', lax:'Luminance L (cd/m²)', cnt:'Count', smp:'Sample No.', lsl:'LSL', usl:'USL', typ:'Typ', mean:'Mean',
+       n:'n', sd:'Std dev', cpk:'Cpk', below:'Below LSL', above:'Above USL', yield:'Yield', normal:'Normal fit', nolum:'No luminance data: choose the luminance column above' }
 };
 const PRESETS = [['D65 白點',0.3127,0.3290],['C 光源',0.3101,0.3162],['A 光源',0.4476,0.4074],['E 等能白',0.3333,0.3333],['sRGB 紅',0.64,0.33],['sRGB 綠',0.30,0.60],['sRGB 藍',0.15,0.06]];
 
@@ -957,6 +1017,175 @@ function renderDiagram(P, lay, o){
 }
 
 /* =========================================================================
+ * 亮度分布圖（直方圖／推移圖）
+ * ========================================================================= */
+function layoutLum(W, panel){
+  const u = W/1000, L = 108*u, R = (panel ? 262 : 36)*u, T = 74*u, B = 98*u, H = Math.round(W*0.64);
+  return { kind:'lum', W, H, u, L, R, T, B, pw:W - L - R, ph:H - T - B };
+}
+const fmtL = v => !isFinite(v) ? '—' : Math.abs(v) >= 100 ? v.toFixed(1) : Math.abs(v) >= 10 ? v.toFixed(2) : v.toFixed(3);
+const fmtN = v => !isFinite(v) ? '—' : String(+(+v).toFixed(4));
+const lumDec = s => s >= 1 ? 0 : Math.min(4, Math.ceil(-Math.log10(s) - 1e-9));
+function lumStats(ls, sp){
+  const n = ls.length; if (!n) return null;
+  const avg = ls.reduce((s, v) => s + v, 0)/n;
+  const sd = n > 1 ? Math.sqrt(ls.reduce((s, v) => s + (v - avg)**2, 0)/(n - 1)) : NaN;
+  const lo = isFinite(sp.l0) ? sp.l0 : null, hi = isFinite(sp.l1) ? sp.l1 : null;
+  const below = lo === null ? 0 : ls.filter(v => v < lo).length, above = hi === null ? 0 : ls.filter(v => v > hi).length;
+  let cpk = NaN;
+  if (isFinite(sd) && sd > 0 && (lo !== null || hi !== null)) cpk = Math.min(lo === null ? Infinity : (avg - lo)/(3*sd), hi === null ? Infinity : (hi - avg)/(3*sd));
+  return { n, avg, sd, max:Math.max(...ls), min:Math.min(...ls), below, above, bad:below + above, cpk, cpkName: lo !== null && hi !== null ? 'Cpk' : lo !== null ? 'Cpl' : 'Cpu' };
+}
+/* o: { lang, type:'hist'|'run', bins, normal, mean, typ, stat, incSpec, vals:[{i,l,bad}], lspec:{l0,l1,lt}, st } */
+function renderLum(P, lay, o){
+  const Lx = I18N[o.lang] || I18N.zh, en = o.lang === 'en', { u, L, T, pw, ph, W, H } = lay;
+  const run = o.type === 'run', vals = o.vals || [], st = o.st, sp = o.lspec, lo = sp.l0, hi = sp.l1, ty = sp.lt;
+  P.rect(0, 0, W, H, { fill:'#000' });
+  const tt = run ? Lx.t_run : Lx.t_lum, tfo = { size:27*u, weight:700, color:'#fff', base:'bottom' }, ofo = { size:16*u, color:'rgba(255,255,255,0.55)', align:'right', base:'bottom' };
+  P.text(tt, L, T - 26*u, tfo);
+  if (measure(tt, tfo) + measure(Lx.lobs, ofo) + 30*u < pw) P.text(Lx.lobs, L + pw, T - 28*u, ofo);
+  lay.fmt = null;
+  if (!vals.length || !st){
+    P.rect(L, T, pw, ph, { stroke:'rgba(255,255,255,0.5)', lw:1.2*u });
+    P.text(Lx.nolum, L + pw/2, T + ph/2, { size:19*u, color:'rgba(255,255,255,0.72)', align:'center', base:'middle' });
+    return;
+  }
+  const specV = [lo, hi].filter(isFinite).concat(o.typ && isFinite(ty) ? [ty] : []);
+  const okSd = isFinite(st.sd) && st.sd > 0;
+  let x0, x1, y0, y1, bins = null, bw = 0;
+  if (!run){
+    const span = st.max - st.min;
+    let k = o.bins === 'auto' ? Math.min(25, Math.max(5, Math.ceil(Math.sqrt(vals.length)))) : Math.max(1, +o.bins || 10), start;
+    if (span <= 0){ bw = niceStep(Math.max(Math.abs(st.max)*0.01, 0.01)); start = st.min - bw/2; k = 1; }
+    else if (o.bins === 'auto'){ bw = niceStep(span/k); start = Math.floor(st.min/bw + 1e-9)*bw; k = Math.max(1, Math.floor((st.max - start)/bw + 1e-9) + 1); }
+    else { bw = span/k; start = st.min; }
+    bins = Array.from({ length:k }, (_, i) => ({ a:start + i*bw, b:start + (i + 1)*bw, n:0, bad:0 }));
+    for (const v of vals){ const i = Math.min(k - 1, Math.max(0, Math.floor((v.l - start)/bw + 1e-9))); bins[i].n++; if (v.bad) bins[i].bad++; }
+    x0 = start; x1 = start + k*bw;
+    if (o.normal && okSd){ x0 = Math.min(x0, st.avg - 3.2*st.sd); x1 = Math.max(x1, st.avg + 3.2*st.sd); }
+    if (o.incSpec) for (const s of specV){ x0 = Math.min(x0, s); x1 = Math.max(x1, s); }
+    const pad = (x1 - x0)*0.04; x0 -= pad; x1 += pad;
+    let peak = Math.max(...bins.map(b => b.n));
+    if (o.normal && okSd) peak = Math.max(peak, vals.length*bw/(st.sd*Math.sqrt(2*Math.PI)));
+    y0 = 0; y1 = peak*1.3;
+  } else {
+    x0 = 0.5; x1 = Math.max(...vals.map(v => v.i)) + 0.5;
+    y0 = st.min; y1 = st.max;
+    if (o.incSpec) for (const s of specV){ y0 = Math.min(y0, s); y1 = Math.max(y1, s); }
+    const span = (y1 - y0) || Math.max(Math.abs(y1)*0.05, 1);
+    y0 -= span*0.1; y1 += span*0.16;
+  }
+  const X = v => L + (v - x0)/(x1 - x0)*pw, Y = v => T + ph - (v - y0)/(y1 - y0)*ph;
+  lay.ix = px => x0 + (px - L)/pw*(x1 - x0); lay.iy = py => y0 + (T + ph - py)/ph*(y1 - y0);
+  lay.fmt = run ? (a, b) => `No. ${Math.round(a)}   L ${fmtL(b)}`
+    : a => { const b = bins.find(q => a >= q.a && a < q.b); return `L ${fmtL(a)} cd/m²` + (b ? `   [${fmtL(b.a)}, ${fmtL(b.b)})  ${b.n}` : ''); };
+  const xs = run ? Math.max(1, niceStep((x1 - x0)/10)) : niceStep((x1 - x0)/8), ys = run ? niceStep((y1 - y0)/7) : Math.max(1, niceStep((y1 - y0)/6));
+  const xt = ticks(x0, x1, xs).filter(v => !run || v >= 1), yt = ticks(y0, y1, ys);
+  const C_OK = '#40a9ff', C_BAD = '#ff453a', C_MEAN = '#ffd60a', C_TYP = '#30d158', C_FIT = '#ff9f0a';
+
+  P.clipRect(L, T, pw, ph, () => {
+    for (const v of xt) P.line(X(v), T, X(v), T + ph, { stroke:'rgba(255,255,255,0.13)', lw:1*u });
+    for (const v of yt) P.line(L, Y(v), L + pw, Y(v), { stroke:'rgba(255,255,255,0.13)', lw:1*u });
+    // 不合格區域
+    if (isFinite(lo)){ if (run){ const a = Math.max(T, Y(lo)); if (a < T + ph) P.rect(L, a, pw, T + ph - a, { fill:'rgba(255,69,58,0.11)' }); } else { const b = Math.min(L + pw, X(lo)); if (b > L) P.rect(L, T, b - L, ph, { fill:'rgba(255,69,58,0.11)' }); } }
+    if (isFinite(hi)){ if (run){ const b = Math.min(T + ph, Y(hi)); if (b > T) P.rect(L, T, pw, b - T, { fill:'rgba(255,69,58,0.11)' }); } else { const a = Math.max(L, X(hi)); if (a < L + pw) P.rect(a, T, L + pw - a, ph, { fill:'rgba(255,69,58,0.11)' }); } }
+    if (!run){
+      for (const b of bins){
+        if (!b.n) continue;
+        const xa = X(b.a), xb = X(b.b), g = Math.min(1.5*u, (xb - xa)*0.08), good = b.n - b.bad;
+        if (b.bad) P.rect(xa + g, Y(b.bad), xb - xa - 2*g, Y(0) - Y(b.bad), { fill:C_BAD, stroke:'rgba(255,255,255,0.85)', lw:1*u });
+        if (good) P.rect(xa + g, Y(b.n), xb - xa - 2*g, Y(b.bad) - Y(b.n), { fill:C_OK, stroke:'rgba(255,255,255,0.85)', lw:1*u });
+        if (xb - xa > 15*u) P.text(String(b.n), (xa + xb)/2, Y(b.n) - 5*u, { size:14*u, mono:true, weight:700, color:'#fff', align:'center', base:'bottom' });
+      }
+      if (o.normal && okSd){
+        const pts = [], k = vals.length*bw/(st.sd*Math.sqrt(2*Math.PI));
+        for (let i = 0; i <= 240; i++){ const v = x0 + (x1 - x0)*i/240; pts.push([X(v), Y(k*Math.exp(-0.5*((v - st.avg)/st.sd)**2))]); }
+        P.poly(pts, { stroke:'rgba(0,0,0,0.6)', lw:4.4*u }); P.poly(pts, { stroke:C_FIT, lw:2.4*u });
+      }
+    } else {
+      P.poly(vals.map(v => [X(v.i), Y(v.l)]), { stroke:'rgba(255,255,255,0.42)', lw:1.4*u });
+      const r = vals.length > 300 ? 2.6*u : vals.length > 100 ? 3.4*u : 4.6*u;
+      for (const v of vals) P.circle(X(v.i), Y(v.l), v.bad ? r + 0.8*u : r, v.bad ? { fill:'#ff3b30', stroke:'#fff', lw:1.3*u } : { fill:C_OK, stroke:'#fff', lw:1.1*u });
+    }
+    // 規格線、Typ、平均
+    const marks = [];
+    if (isFinite(lo)) marks.push({ v:lo, c:C_BAD, dash:[9*u, 6*u], t:`${Lx.lsl} ${fmtN(lo)}` });
+    if (isFinite(hi)) marks.push({ v:hi, c:C_BAD, dash:[9*u, 6*u], t:`${Lx.usl} ${fmtN(hi)}` });
+    if (o.typ && isFinite(ty)) marks.push({ v:ty, c:C_TYP, dash:[4*u, 4*u], t:`${Lx.typ} ${fmtN(ty)}` });
+    if (o.mean) marks.push({ v:st.avg, c:C_MEAN, dash:[], t:`${Lx.mean} ${fmtL(st.avg)}` });
+    const lfo = { size:15*u, mono:true, weight:700 }, lh = 22*u;
+    if (!run){
+      const placed = [];
+      marks.map(m => ({ ...m, p:X(m.v) })).sort((a, b) => a.p - b.p).forEach(m => {
+        let p = m.p, t = m.t, edge = 0;
+        if (p < L){ p = L; t = '◀ ' + t; edge = -1; } else if (p > L + pw){ p = L + pw; t = t + ' ▶'; edge = 1; }
+        if (!edge){ P.line(p, T, p, T + ph, { stroke:'rgba(0,0,0,0.55)', lw:4.2*u, dash:m.dash }); P.line(p, T, p, T + ph, { stroke:m.c, lw:2.4*u, dash:m.dash }); }
+        const w = measure(t, lfo) + 12*u, right = edge === 1 || (edge === 0 && p + 6*u + w > L + pw);
+        const bx = right ? p - (edge ? 4 : 6)*u - w : p + (edge ? 4 : 6)*u;
+        let lv = 0; while (placed.some(q => q.lv === lv && bx < q.x1 + 4*u && bx + w > q.x0 - 4*u)) lv++;
+        placed.push({ lv, x0:bx, x1:bx + w });
+        const by = T + 8*u + lv*(lh + 4*u);
+        P.rect(bx, by, w, lh, { fill:'rgba(0,0,0,0.78)', stroke:m.c, lw:1.2*u });
+        P.text(t, bx + 6*u, by + lh/2, { ...lfo, color:m.c, base:'middle' });
+      });
+    } else {
+      let lastY = Infinity;
+      marks.map(m => ({ ...m, p:Y(m.v) })).sort((a, b) => b.p - a.p).forEach(m => {
+        let p = m.p, t = m.t, edge = 0;
+        if (p > T + ph){ p = T + ph; t = '▼ ' + t; edge = 1; } else if (p < T){ p = T; t = '▲ ' + t; edge = -1; }
+        if (!edge){ P.line(L, p, L + pw, p, { stroke:'rgba(0,0,0,0.55)', lw:4.2*u, dash:m.dash }); P.line(L, p, L + pw, p, { stroke:m.c, lw:2.4*u, dash:m.dash }); }
+        const w = measure(t, lfo) + 12*u;
+        let by = edge === 1 ? p - lh - 4*u : edge === -1 ? p + 4*u : p - lh - 3*u;
+        if (by + lh > lastY - 3*u) by = lastY - lh - 3*u;
+        if (by < T + 2*u) by = T + 2*u;
+        lastY = by;
+        const bx = L + pw - 8*u - w;
+        P.rect(bx, by, w, lh, { fill:'rgba(0,0,0,0.78)', stroke:m.c, lw:1.2*u });
+        P.text(t, bx + 6*u, by + lh/2, { ...lfo, color:m.c, base:'middle' });
+      });
+    }
+  });
+  // 外框、刻度、座標文字
+  P.rect(L, T, pw, ph, { stroke:'rgba(255,255,255,0.8)', lw:1.5*u });
+  const xd = run ? 0 : lumDec(xs), yd = run ? lumDec(ys) : 0;
+  for (const v of xt){ P.line(X(v), T + ph, X(v), T + ph + 8*u, { stroke:'#fff', lw:1.3*u }); P.text(v.toFixed(xd), X(v), T + ph + 14*u, { size:18*u, mono:true, color:'#e8ecf4', align:'center', base:'top' }); }
+  for (const v of yt){ P.line(L - 8*u, Y(v), L, Y(v), { stroke:'#fff', lw:1.3*u }); P.text(v.toFixed(yd), L - 13*u, Y(v), { size:18*u, mono:true, color:'#e8ecf4', align:'right', base:'middle' }); }
+  P.text(run ? Lx.smp : Lx.lax, L + pw/2, H - 22*u, { size:21*u, weight:700, color:'#fff', align:'center', base:'bottom' });
+  P.text(run ? Lx.lax : Lx.cnt, 30*u, T + ph/2, { size:21*u, weight:700, color:'#fff', align:'center', base:'middle', rot:-90 });
+  // 右側統計框
+  if (o.stat){
+    const items = [[Lx.n, String(st.n)], [Lx.mean, fmtL(st.avg)], [Lx.max, fmtL(st.max)], [Lx.min, fmtL(st.min)], [Lx.sd, fmtL(st.sd)]];
+    if (isFinite(lo)) items.push([Lx.lsl, fmtN(lo)]);
+    if (isFinite(hi)) items.push([Lx.usl, fmtN(hi)]);
+    if (isFinite(ty)) items.push([Lx.typ, fmtN(ty)]);
+    if (isFinite(st.cpk)) items.push([st.cpkName, st.cpk.toFixed(2), st.cpk < 1.33]);
+    if (isFinite(lo)) items.push([Lx.below, String(st.below), st.below > 0]);
+    if (isFinite(hi)) items.push([Lx.above, String(st.above), st.above > 0]);
+    if (isFinite(lo) || isFinite(hi)) items.push([Lx.yield, ((1 - st.bad/st.n)*100).toFixed(1) + '%', st.bad > 0]);
+    const leg = [{ t:'box', c:C_OK, s:en ? 'Pass' : '合格' }];
+    if (isFinite(lo) || isFinite(hi)) leg.push({ t:'box', c:C_BAD, s:en ? 'Fail' : '不合格' });
+    if (!run && o.normal && okSd) leg.push({ t:'line', c:C_FIT, s:Lx.normal });
+    const ih = 25*u, bx = L + pw + 18*u, bw = W - bx - 14*u, head = 34*u;
+    const bh = head + items.length*ih + 12*u + 10*u + leg.length*ih + 8*u;
+    P.rect(bx, T, bw, bh, { fill:'rgba(255,255,255,0.06)', stroke:'rgba(255,255,255,0.35)', lw:1*u });
+    P.text(en ? 'Statistics' : '統計', bx + 12*u, T + 10*u, { size:17*u, weight:700, color:'#fff', base:'top' });
+    items.forEach(([k, v, bad], i) => {
+      const cy = T + head + ih*(i + 0.5);
+      P.text(k, bx + 12*u, cy, { size:14.5*u, color:'rgba(255,255,255,0.74)', base:'middle' });
+      P.text(v, bx + bw - 12*u, cy, { size:15.5*u, mono:true, weight:700, color: bad ? '#ff6b61' : '#fff', align:'right', base:'middle' });
+    });
+    const ly = T + head + items.length*ih + 12*u;
+    P.line(bx + 10*u, ly, bx + bw - 10*u, ly, { stroke:'rgba(255,255,255,0.22)', lw:1*u });
+    leg.forEach((g, i) => {
+      const cy = ly + 10*u + ih*(i + 0.5), sx = bx + 22*u;
+      if (g.t === 'box') P.rect(sx - 9*u, cy - 7*u, 18*u, 14*u, { fill:g.c, stroke:'rgba(255,255,255,0.85)', lw:1*u });
+      else P.line(sx - 11*u, cy, sx + 11*u, cy, { stroke:g.c, lw:2.6*u });
+      P.text(g.s, bx + 40*u, cy, { size:14.5*u, color:'#fff', base:'middle' });
+    });
+  }
+}
+
+/* =========================================================================
  * 狀態
  * ========================================================================= */
 const $ = id => document.getElementById(id);
@@ -967,9 +1196,11 @@ const S = {
   view:{ mode:'full', pad:2.5, x0:0.25, x1:0.40, y0:0.25, y1:0.40 },
   view3:{ mode:'zoom', pad:2.5, x0:0.25, x1:0.40, y0:0.25, y1:0.40 },
   disp:{ wl:true, kelly:true, names:true, planck:true, illum:true, srgb:false, legend:true, style:'kelly', lang:'zh' },
-  imgFmt:'png', imgFmt3:'png', mark:{ pts:true, avg:true, box:true, max:true, min:true }, boxShow2:true, xlMacro:true
+  imgFmt:'png', imgFmt3:'png', mark:{ pts:true, avg:true, box:true, max:true, min:true }, boxShow2:true, xlMacro:true,
+  lspec:{ l0:null, lt:null, l1:null }, chart3:'cie',
+  lumv:{ type:'hist', bins:'auto', normal:true, mean:true, typ:true, stat:true, incSpec:false }
 };
-const D = { grid:null, source:'', wb:null, sheet:'', hdr:-1, start:0, cx:-1, cy:-1, cid:-1, rows:[], filter:'all' };
+const D = { grid:null, source:'', wb:null, sheet:'', hdr:-1, start:0, cx:-1, cy:-1, cid:-1, cl:-1, fileSpec:null, rows:[], filter:'all' };
 try{ const s = JSON.parse(localStorage.getItem('cieTool.v1') || 'null'); if (s) for (const k of Object.keys(S)) if (s[k] !== undefined) S[k] = (typeof S[k] === 'object' && S[k]) ? { ...S[k], ...s[k] } : s[k]; }catch(e){}
 function save(){ try{ localStorage.setItem('cieTool.v1', JSON.stringify(S)); }catch(e){} }
 
@@ -1076,14 +1307,42 @@ function schedule(){ if (raf) return; raf = requestAnimationFrame(() => { raf = 
 function renderCurrent(){
   if (cur === 'pt') drawTo($('cv1'), FULL_VIEW, optsPt());
   else if (cur === 'box') drawTo($('cv2'), viewFor(S.view, false), optsBox());
+  else if (S.chart3 === 'lum') drawLumTo($('cv3'), optsLum());
   else drawTo($('cv3'), viewFor(S.view3, true), optsData());
+}
+/* 亮度規格與亮度圖 */
+const numOrNaN = v => Number.isFinite(v) ? v : NaN;
+function lsp(){ const s = S.lspec || {}; return { l0:numOrNaN(s.l0), l1:numOrNaN(s.l1), lt:numOrNaN(s.lt) }; }
+function lspecValid(){ const s = lsp(); return (isFinite(s.l0) || isFinite(s.l1)) && !(isFinite(s.l0) && isFinite(s.l1) && s.l0 >= s.l1); }
+function lspJ(){ const s = lsp(); return lspecValid() ? s : { l0:NaN, l1:NaN, lt:s.lt }; }
+function lumVals(){ return D.rows.map((r, i) => ({ i:i + 1, l:r.l, bad:!!r.bl })).filter(v => Number.isFinite(v.l)); }
+function optsLum(lang){ const vals = lumVals(), sp = lspJ(); return { ...S.lumv, lang:lang || S.disp.lang, vals, lspec:sp, st:lumStats(vals.map(v => v.l), sp) }; }
+function drawLumTo(canvas, o){
+  const wrap = canvas.parentElement, cssW = wrap.clientWidth; if (!cssW) return;
+  const dpr = Math.min(3, window.devicePixelRatio || 1), W = Math.round(cssW*dpr), lay = layoutLum(W, o.stat && o.vals.length);
+  canvas.width = W; canvas.height = lay.H; canvas.style.height = (lay.H/dpr) + 'px';
+  renderLum(new CanvasPainter(canvas.getContext('2d')), lay, o);
+  canvas._lay = lay; canvas._dpr = dpr;
+}
+async function makeLumImage(fmt, width, o){
+  const lay = layoutLum(width, o.stat && o.vals.length);
+  if (fmt === 'svg'){ const P = new SvgPainter(lay.W, lay.H); renderLum(P, lay, o); return new Blob([P.toString()], { type:'image/svg+xml' }); }
+  const c = document.createElement('canvas'); c.width = lay.W; c.height = lay.H;
+  renderLum(new CanvasPainter(c.getContext('2d')), lay, o);
+  return new Promise(res => c.toBlob(res, fmt === 'jpg' ? 'image/jpeg' : 'image/png', 0.95));
 }
 new ResizeObserver(() => schedule()).observe(document.querySelector('.app-shell'));
 /* 滑鼠座標讀值 */
 for (const id of ['cv1', 'cv2', 'cv3']){
   const cv = $(id), ro = cv.parentElement.querySelector('.readout');
   const at = e => { const lay = cv._lay; if (!lay) return null; const r = cv.getBoundingClientRect(); const px = (e.clientX - r.left)*cv._dpr, py = (e.clientY - r.top)*cv._dpr; if (px < lay.L || px > lay.L + lay.pw || py < lay.T || py > lay.T + lay.ph) return null; return [lay.ix(px), lay.iy(py)]; };
-  cv.addEventListener('mousemove', e => { const p = at(e); if (!p){ ro.classList.remove('show'); return; } const dec = cv._lay.dx < 0.08 ? 5 : 4; ro.textContent = `x ${p[0].toFixed(dec)}   y ${p[1].toFixed(dec)}`; ro.classList.add('show'); });
+  cv.addEventListener('mousemove', e => {
+    const lay = cv._lay; if (lay && lay.kind === 'lum' && !lay.fmt){ ro.classList.remove('show'); return; }
+    const p = at(e); if (!p){ ro.classList.remove('show'); return; }
+    if (lay.kind === 'lum') ro.textContent = lay.fmt(p[0], p[1]);
+    else { const dec = lay.dx < 0.08 ? 5 : 4; ro.textContent = `x ${p[0].toFixed(dec)}   y ${p[1].toFixed(dec)}`; }
+    ro.classList.add('show');
+  });
   cv.addEventListener('mouseleave', () => ro.classList.remove('show'));
   if (id === 'cv1') cv.addEventListener('click', e => { const p = at(e); if (!p) return; $('ptX').value = p[0].toFixed(4); $('ptY').value = p[1].toFixed(4); updatePt(); });
 }
@@ -1158,10 +1417,25 @@ function readSpec(){
   } else h = '<div class="alert bad">上下限不完整，或下限不小於上限。</div>';
   $('specInfo').innerHTML = h;
   $('boxSub').textContent = ok ? `x ${f4(S.spec.x0)} ~ ${f4(S.spec.x1)}　·　y ${f4(S.spec.y0)} ~ ${f4(S.spec.y1)}` : '尚未設定規格框';
+  // 亮度（只有下限也可以）
+  for (const [id, k] of Object.entries(LSPEC_IDS)){ const v = parseFloat($(id).value); S.lspec[k] = isFinite(v) ? v : null; }
+  const ls = lsp(), lbad = isFinite(ls.l0) && isFinite(ls.l1) && ls.l0 >= ls.l1;
+  $('spL0').classList.toggle('err', lbad); $('spL1').classList.toggle('err', lbad);
+  if (lbad) $('specInfo').innerHTML += '<div class="alert bad">亮度下限必須小於上限（沒有上限請留空白）。</div>';
+  else if (lspecValid()) $('specInfo').innerHTML += `<div class="alert info">亮度規格：${isFinite(ls.l0) ? `≥ <b>${fmtN(ls.l0)}</b>` : ''}${isFinite(ls.l0) && isFinite(ls.l1) ? '，' : ''}${isFinite(ls.l1) ? `≤ <b>${fmtN(ls.l1)}</b>` : ''} cd/m²${isFinite(ls.lt) ? `　Typ ${fmtN(ls.lt)}` : ''}</div>`;
   save(); schedule();
   if (D.rows.length){ judgeRows(); }
 }
-Object.keys(SPEC_IDS).forEach(id => $(id).addEventListener('input', readSpec));
+const LSPEC_IDS = { spL0:'l0', spLt:'lt', spL1:'l1' };
+Object.keys(SPEC_IDS).concat(Object.keys(LSPEC_IDS)).forEach(id => $(id).addEventListener('input', readSpec));
+/* 一次帶入整組規格（辨識結果、檔案內的規格列）：null 代表清空，沒有的鍵不動 */
+function applySpec(o){
+  const xy = { x0:'spX0', x1:'spX1', y0:'spY0', y1:'spY1' }, lm = { l0:'spL0', lt:'spLt', l1:'spL1' };
+  for (const [k, id] of Object.entries(xy)) if (Number.isFinite(o[k])) $(id).value = o[k].toFixed(4);
+  if (['l0', 'lt', 'l1'].some(k => Number.isFinite(o[k])))
+    for (const [k, id] of Object.entries(lm)) if (k in o) $(id).value = Number.isFinite(o[k]) ? String(o[k]) : '';
+  readSpec();
+}
 $('rcColor').addEventListener('input', () => { S.rect.color = $('rcColor').value; $('rcColorTxt').textContent = S.rect.color.toUpperCase(); save(); schedule(); });
 $('rcLw').addEventListener('change', () => { S.rect.lw = +$('rcLw').value; save(); schedule(); });
 /* 顯示範圍控制（第二頁 S.view、第三頁 S.view3 各自獨立） */
@@ -1223,10 +1497,26 @@ $('btnImg').addEventListener('click', () => withBusy($('btnImg'), async () => {
   download(await makeImage(S.imgFmt, +$('imgW').value, viewFor(S.view, false), optsBox()), name);
   toast('success', '已開始下載', name);
 }));
+function makeImage3(lang){
+  const w = +$('imgW3').value;
+  if (S.chart3 === 'lum') return makeLumImage(S.imgFmt3, w, optsLum(lang));
+  return makeImage(S.imgFmt3, w, viewFor(S.view3, true), { ...optsData(), lang });
+}
+const imgBase3 = () => ($('imgName3').value.trim() || (S.chart3 === 'lum' ? `亮度分布_${today()}` : `CIE1931_量測結果_${today()}`)).replace(/[\\/:*?"<>|]/g, '');
 $('btnImg3').addEventListener('click', () => withBusy($('btnImg3'), async () => {
-  const name = ($('imgName3').value.trim() || `CIE1931_量測結果_${today()}`).replace(/[\\/:*?"<>|]/g, '') + '.' + S.imgFmt3;
-  download(await makeImage(S.imgFmt3, +$('imgW3').value, viewFor(S.view3, true), optsData()), name);
+  if (S.chart3 === 'lum' && !lumVals().length) toast('info', '提醒', '目前沒有亮度資料，輸出的圖會是空白說明');
+  const name = imgBase3() + '.' + S.imgFmt3;
+  download(await makeImage3(S.disp.lang), name);
   toast('success', '已開始下載', name);
+}));
+$('btnImg3Both').addEventListener('click', () => withBusy($('btnImg3Both'), async () => {
+  const names = [];
+  for (const [lang, sfx] of [['zh', '_中文'], ['en', '_EN']]){
+    const name = imgBase3() + sfx + '.' + S.imgFmt3;
+    download(await makeImage3(lang), name); names.push(name);
+    await new Promise(r => setTimeout(r, 450));
+  }
+  toast('success', '已開始下載中英兩版', names.join('、'));
 }));
 
 /* =========================================================================
@@ -1238,20 +1528,35 @@ const normH = v => String(v ?? '').toLowerCase().replace(/[\s_\-.:：]/g, '');
 const isXH = t => /^(cie)?x$|^x[(（\[]|^ciex|^色度x|^x座標|^x值|^[wrgb]x$/.test(t);
 const isYH = t => /^(cie)?y$|^y[(（\[]|^ciey|^色度y|^y座標|^y值|^[wrgb]y$/.test(t);
 const isIdH = t => /^(no|編號|序號|樣品|sample|id|點|pcs|位置|point|sn|批號|lot)/.test(t);
+const isLH = t => /^[wrgb]?l$|^lv$|^lbr$|^l[(（\[]|^lv[(（\[]|亮度|輝度|辉度|^luminance|^brightness|^cd\/?m/.test(t);
+const rangeOf = v => { const m = /^\s*(\d*\.?\d+)\s*[-~～－–]\s*(\d*\.?\d+)\s*$/.exec(String(v ?? '')); return m && +m[1] < +m[2] ? [+m[1], +m[2]] : null; };
 
 function setGrid(grid, source){
   D.grid = grid.map(r => Array.isArray(r) ? r : []); D.source = source;
   detectCols(); buildRows();
 }
 function detectCols(){
-  const g = D.grid; D.hdr = -1; D.cx = D.cy = D.cid = -1; D.start = 0;
+  const g = D.grid; D.hdr = -1; D.cx = D.cy = D.cid = D.cl = -1; D.start = 0; D.fileSpec = null;
   for (let r = 0; r < Math.min(15, g.length); r++){
     const row = g[r].map(normH);
     const ix = row.findIndex(isXH), iy = row.findIndex(isYH);
     if (ix >= 0 && iy >= 0){
       D.hdr = r; D.cx = ix; D.cy = iy; D.start = r + 1;
-      D.cid = row.findIndex((t, i) => i !== ix && i !== iy && isIdH(t));
+      D.cl = row.findIndex((t, i) => i !== ix && i !== iy && isLH(t));
+      D.cid = row.findIndex((t, i) => i !== ix && i !== iy && i !== D.cl && isIdH(t));
+      // 多層標題：往上找編號欄（例如 Lot ID）
+      for (let r2 = r - 1; D.cid < 0 && r2 >= 0; r2--) D.cid = g[r2].map(normH).findIndex((t, i) => i !== ix && i !== iy && i !== D.cl && isIdH(t));
       if (D.cid < 0 && Math.min(ix, iy) > 0) D.cid = 0;
+      // 標題下方的規格列（例如 100 | 0.46-0.54 | 0.45-0.53）
+      for (let r2 = r + 1; r2 <= Math.min(r + 2, g.length - 1); r2++){
+        const rx = rangeOf(g[r2][ix]), ry = rangeOf(g[r2][iy]);
+        if (rx && ry){
+          const lv = D.cl >= 0 ? toNum(g[r2][D.cl]) : NaN, lr = D.cl >= 0 ? rangeOf(g[r2][D.cl]) : null;
+          D.fileSpec = { x0:rx[0], x1:rx[1], y0:ry[0], y1:ry[1] };
+          if (lr){ D.fileSpec.l0 = lr[0]; D.fileSpec.l1 = lr[1]; } else if (isFinite(lv)){ D.fileSpec.l0 = lv; D.fileSpec.l1 = null; }
+          break;
+        }
+      }
       return;
     }
   }
@@ -1274,30 +1579,37 @@ function buildRows(){
       const row = D.grid[r], x = toNum(row[D.cx]), y = toNum(row[D.cy]);
       if (!isFinite(x) || !isFinite(y)) continue;
       const idv = D.cid >= 0 ? row[D.cid] : '';
-      D.rows.push({ src:r + 1, id: String(idv ?? '').trim(), idv, x, y });
+      D.rows.push({ src:r + 1, id: String(idv ?? '').trim(), idv, x, y, l: D.cl >= 0 ? toNum(row[D.cl]) : NaN });
     }
   }
   judgeRows();
 }
 function judgeRows(){
-  const ok = specValid(), s = S.spec, eps = 1e-12;
-  for (const r of D.rows){ r.bx = ok && (r.x < s.x0 - eps || r.x > s.x1 + eps); r.by = ok && (r.y < s.y0 - eps || r.y > s.y1 + eps); }
+  const ok = specValid(), s = S.spec, eps = 1e-12, ls = lspJ();
+  for (const r of D.rows){
+    r.bx = ok && (r.x < s.x0 - eps || r.x > s.x1 + eps); r.by = ok && (r.y < s.y0 - eps || r.y > s.y1 + eps);
+    r.bl = Number.isFinite(r.l) && ((isFinite(ls.l0) && r.l < ls.l0 - eps) || (isFinite(ls.l1) && r.l > ls.l1 + eps));
+  }
   renderData(); schedule();
 }
+const hasLum = () => D.rows.some(r => Number.isFinite(r.l));
 function stats(){
   const rows = D.rows, n = rows.length; if (!n) return null;
   const xs = rows.map(r => r.x), ys = rows.map(r => r.y), sum = a => a.reduce((s, v) => s + v, 0);
   const ax = sum(xs)/n, ay = sum(ys)/n;
   const sd = (a, m) => n > 1 ? Math.sqrt(a.reduce((s, v) => s + (v-m)**2, 0)/(n-1)) : NaN;
   const ok = specValid(), sp = S.spec;
-  const bad = rows.filter(r => r.bx || r.by).length;
-  return { n, ax, ay, maxX:Math.max(...xs), maxY:Math.max(...ys), minX:Math.min(...xs), minY:Math.min(...ys), sdX:sd(xs, ax), sdY:sd(ys, ay), bad,
-    abx: ok && (ax < sp.x0 || ax > sp.x1), aby: ok && (ay < sp.y0 || ay > sp.y1) };
+  const bad = rows.filter(r => r.bx || r.by || r.bl).length, badC = rows.filter(r => r.bx || r.by).length;
+  return { n, ax, ay, maxX:Math.max(...xs), maxY:Math.max(...ys), minX:Math.min(...xs), minY:Math.min(...ys), sdX:sd(xs, ax), sdY:sd(ys, ay), bad, badC,
+    abx: ok && (ax < sp.x0 || ax > sp.x1), aby: ok && (ay < sp.y0 || ay > sp.y1),
+    L: lumStats(rows.filter(r => Number.isFinite(r.l)).map(r => r.l), lspJ()) };
 }
 function renderData(){
   const ok = specValid(), s = S.spec;
-  $('specStrip').innerHTML = ok ? `<b>規格</b><span class="spec-pill">x：${f4(s.x0)} ~ ${f4(s.x1)}</span><span class="spec-pill">y：${f4(s.y0)} ~ ${f4(s.y1)}</span><span class="hint">（上下限本身算合格）</span>`
-    : '<span class="alert bad" style="margin:0;">第二頁的規格上下限還沒設定完整，無法判定超規。</span>';
+  const lok = lspecValid(), ls = lsp();
+  const lPill = lok ? `<span class="spec-pill">亮度：${isFinite(ls.l0) ? `≥ ${fmtN(ls.l0)}` : ''}${isFinite(ls.l0) && isFinite(ls.l1) ? '，' : ''}${isFinite(ls.l1) ? `≤ ${fmtN(ls.l1)}` : ''} cd/m²</span>` : '';
+  $('specStrip').innerHTML = ok ? `<b>規格</b><span class="spec-pill">x：${f4(s.x0)} ~ ${f4(s.x1)}</span><span class="spec-pill">y：${f4(s.y0)} ~ ${f4(s.y1)}</span>${lPill}<span class="hint">（上下限本身算合格）</span>`
+    : `<span class="alert bad" style="margin:0;">第二頁的色度上下限還沒設定完整，無法判定色度超規。</span>${lPill}`;
   // 欄位對應
   const g = D.grid;
   if (g){
@@ -1309,42 +1621,71 @@ function renderData(){
     h += `<div class="field"><label>x 欄</label><select class="select" data-map="cx">${opt(D.cx, false)}</select></div>`;
     h += `<div class="field"><label>y 欄</label><select class="select" data-map="cy">${opt(D.cy, false)}</select></div>`;
     h += `<div class="field"><label>編號欄</label><select class="select" data-map="cid">${opt(D.cid, true)}</select></div>`;
+    h += `<div class="field"><label>亮度欄（cd/m²）</label><select class="select" data-map="cl">${opt(D.cl, true)}</select></div>`;
     h += `<div class="field"><label>資料起始列</label><input class="input mono" type="number" min="1" data-map="start" value="${D.start + 1}"></div>`;
     $('mapArea').innerHTML = h;
   } else $('mapArea').innerHTML = '';
-  $('dataAlert').innerHTML = g ? (D.rows.length ? `<div class="alert good">來源：${esc(D.source)}，讀到 <b>${D.rows.length}</b> 筆 x、y 數值。</div>` : '<div class="alert bad">找不到可用的 x、y 數值，請在上方改選欄位或起始列。</div>') : '';
+  const nL = D.rows.filter(r => Number.isFinite(r.l)).length;
+  let da = g ? (D.rows.length ? `<div class="alert good">來源：${esc(D.source)}，讀到 <b>${D.rows.length}</b> 筆 x、y 數值${nL ? `，其中 <b>${nL}</b> 筆有亮度` : '（沒有亮度欄，可在上方「亮度欄」選擇）'}。</div>` : '<div class="alert bad">找不到可用的 x、y 數值，請在上方改選欄位或起始列。</div>') : '';
+  const fs = D.fileSpec;
+  if (fs) da += `<div class="alert info">檔案內有規格列：x ${fmtN(fs.x0)} ~ ${fmtN(fs.x1)}、y ${fmtN(fs.y0)} ~ ${fmtN(fs.y1)}${Number.isFinite(fs.l0) ? `、亮度 ≥ ${fmtN(fs.l0)}` : ''}${Number.isFinite(fs.l1) ? `、≤ ${fmtN(fs.l1)}` : ''}　<button class="btn btn-soft btn-sm" id="btnUseFileSpec" type="button">套用為規格</button></div>`;
+  $('dataAlert').innerHTML = da;
 
   // 統計
   const st = stats();
   const tile = (k, v, sub, cls = '') => `<div class="stat ${cls}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`;
+  const SL = st && st.L, lj = SL && lok, anySpec = ok || lj;
+  const badSub = [ok ? `x 超規 ${D.rows.filter(r => r.bx).length}・y 超規 ${D.rows.filter(r => r.by).length}` : '', lj ? `亮度不合格 ${SL.bad}` : ''].filter(Boolean).join('・');
   $('statGrid').innerHTML = st ? [
     tile('筆數', st.n, D.source ? esc(D.source).slice(0, 30) : ''),
     tile('平均 x', f4(st.ax), `最大 ${f4(st.maxX)}／最小 ${f4(st.minX)}`, st.abx ? 'bad' : ''),
     tile('平均 y', f4(st.ay), `最大 ${f4(st.maxY)}／最小 ${f4(st.minY)}`, st.aby ? 'bad' : ''),
     tile('標準差', `<span style="font-size:16px;">${f4(st.sdX)} / ${f4(st.sdY)}</span>`, 'x / y（樣本標準差）'),
-    tile('超規筆數', st.bad, ok ? `x 超規 ${D.rows.filter(r => r.bx).length}・y 超規 ${D.rows.filter(r => r.by).length}` : '未設定規格', st.bad ? 'bad' : 'good'),
-    tile('合格率', ok ? ((1 - st.bad/st.n)*100).toFixed(1) + '%' : '—', ok ? `${st.n - st.bad} / ${st.n} 筆合格` : '', ok && st.bad ? 'bad' : 'good')
+    SL ? tile('平均亮度', fmtL(SL.avg), `最大 ${fmtL(SL.max)}／最小 ${fmtL(SL.min)}`, lj && isFinite(ls.l0) && SL.avg < ls.l0 ? 'bad' : '') : '',
+    SL ? tile(lj && isFinite(SL.cpk) ? `亮度 ${SL.cpkName}` : '亮度標準差', lj && isFinite(SL.cpk) ? SL.cpk.toFixed(2) : fmtL(SL.sd), lj && isFinite(SL.cpk) ? `σ ${fmtL(SL.sd)}・${SL.cpk >= 1.33 ? '≥ 1.33' : '< 1.33'}` : (lok ? '筆數不足' : '未設定亮度規格'), lj && isFinite(SL.cpk) ? (SL.cpk >= 1.33 ? 'good' : 'bad') : '') : '',
+    tile('超規筆數', st.bad, anySpec ? badSub : '未設定規格', st.bad ? 'bad' : 'good'),
+    tile('合格率', anySpec ? ((1 - st.bad/st.n)*100).toFixed(1) + '%' : '—', anySpec ? `${st.n - st.bad} / ${st.n} 筆合格` : '', anySpec && st.bad ? 'bad' : 'good')
   ].join('') : '';
 
   // 表格
   let rows = D.rows.map((r, i) => [r, i]);
-  if (D.filter === 'ng') rows = rows.filter(([r]) => r.bx || r.by);
+  if (D.filter === 'ng') rows = rows.filter(([r]) => r.bx || r.by || r.bl);
   $('tableSub').textContent = D.rows.length ? `共 ${D.rows.length} 筆，紅色為超出上下限的數值${rows.length > 2000 ? '（只顯示前 2000 筆）' : ''}` : '';
   if (!D.rows.length){ $('tableArea').innerHTML = '<div class="empty">尚未載入量測資料</div>'; }
   else {
+    const showL = hasLum();
     const body = rows.slice(0, 2000).map(([r, i]) => {
-      const c = xyToRgb(r.x, r.y), bad = r.bx || r.by;
-      return `<tr class="${bad ? 'ng' : ''}"><td class="num">${i + 1}</td><td>${esc(r.id)}</td><td class="num ${r.bx ? 'oos' : ''}">${f4(r.x)}</td><td class="num ${r.by ? 'oos' : ''}">${f4(r.y)}</td>
-        <td><span class="sw" style="background:${c ? c.hex : '#000'}"></span></td><td>${ok ? `<span class="tag ${bad ? 'ng' : 'ok'}">${bad ? 'NG' : 'OK'}</span>` : '—'}</td><td class="num" style="color:var(--text-faint)">${r.src}</td></tr>`;
+      const c = xyToRgb(r.x, r.y), bad = r.bx || r.by || r.bl;
+      return `<tr class="${bad ? 'ng' : ''}"><td class="num">${i + 1}</td><td>${esc(r.id)}</td><td class="num ${r.bx ? 'oos' : ''}">${f4(r.x)}</td><td class="num ${r.by ? 'oos' : ''}">${f4(r.y)}</td>${showL ? `<td class="num ${r.bl ? 'oos' : ''}">${Number.isFinite(r.l) ? fmtN(r.l) : '—'}</td>` : ''}
+        <td><span class="sw" style="background:${c ? c.hex : '#000'}"></span></td><td>${anySpec ? `<span class="tag ${bad ? 'ng' : 'ok'}">${bad ? 'NG' : 'OK'}</span>` : '—'}</td><td class="num" style="color:var(--text-faint)">${r.src}</td></tr>`;
     }).join('');
-    const avgRow = st ? `<tr style="background:var(--warn-soft);font-weight:800;"><td></td><td>平均</td><td class="num ${st.abx ? 'oos' : ''}">${f4(st.ax)}</td><td class="num ${st.aby ? 'oos' : ''}">${f4(st.ay)}</td><td><span class="sw" style="background:${(xyToRgb(st.ax, st.ay) || {}).hex}"></span></td><td>${ok ? `<span class="tag ${st.abx || st.aby ? 'ng' : 'ok'}">${st.abx || st.aby ? 'NG' : 'OK'}</span>` : ''}</td><td></td></tr>` : '';
-    $('tableArea').innerHTML = `<div class="table-wrap"><table class="dt"><thead><tr><th class="num">No.</th><th>編號</th><th class="num">x</th><th class="num">y</th><th>色</th><th>判定</th><th class="num">原始列</th></tr></thead><tbody>${avgRow}${body}</tbody></table></div>`;
+    const abl = lj && isFinite(ls.l0) && SL.avg < ls.l0, avgBad = st.abx || st.aby || abl;
+    const avgRow = st ? `<tr style="background:var(--warn-soft);font-weight:800;"><td></td><td>平均</td><td class="num ${st.abx ? 'oos' : ''}">${f4(st.ax)}</td><td class="num ${st.aby ? 'oos' : ''}">${f4(st.ay)}</td>${showL ? `<td class="num ${abl ? 'oos' : ''}">${SL ? fmtL(SL.avg) : '—'}</td>` : ''}<td><span class="sw" style="background:${(xyToRgb(st.ax, st.ay) || {}).hex}"></span></td><td>${anySpec ? `<span class="tag ${avgBad ? 'ng' : 'ok'}">${avgBad ? 'NG' : 'OK'}</span>` : ''}</td><td></td></tr>` : '';
+    $('tableArea').innerHTML = `<div class="table-wrap"><table class="dt"><thead><tr><th class="num">No.</th><th>編號</th><th class="num">x</th><th class="num">y</th>${showL ? '<th class="num">亮度</th>' : ''}<th>色</th><th>判定</th><th class="num">原始列</th></tr></thead><tbody>${avgRow}${body}</tbody></table></div>`;
   }
   $('btnXl').disabled = !D.rows.length;
   if (!$('xlName').dataset.edited) $('xlName').value = `CIE色度量測_${today()}`;
-  if (!$('imgName3').value) $('imgName3').value = `CIE1931_量測結果_${today()}`;
-  $('xlAlert').innerHTML = D.rows.length && !ok ? '<div class="alert warn">規格未設定，輸出的 Excel 不會有判定與紅色標示。</div>' : '';
+  if (!$('imgName3').value) $('imgName3').value = S.chart3 === 'lum' ? `亮度分布_${today()}` : `CIE1931_量測結果_${today()}`;
+  $('xlAlert').innerHTML = D.rows.length && !ok ? '<div class="alert warn">色度規格未設定，輸出的 Excel 不會有色度判定與紅色標示。</div>' : '';
 }
+$('dataAlert').addEventListener('click', e => { if (e.target.id !== 'btnUseFileSpec' || !D.fileSpec) return; applySpec(D.fileSpec); toast('success', '已套用檔案內的規格', '第二頁的規格也一起更新了'); });
+/* 第三頁圖表：色度分布／亮度分布 */
+function syncChartKind(){
+  const lum = S.chart3 === 'lum';
+  $('chartKind').querySelectorAll('[data-k]').forEach(b => b.classList.toggle('active', b.dataset.k === S.chart3));
+  $('cieToggles3').style.display = $('cieCtl3').style.display = lum ? 'none' : '';
+  $('lumToggles3').style.display = $('lumCtl3').style.display = lum ? '' : 'none';
+  $('chartTitle3').textContent = lum ? '亮度分布 · 規格下限與量測值' : '色度圖 · 規格框與量測點';
+  $('chartSub3').textContent = lum ? '直方圖看分布、推移圖看每一筆；右上可切換圖面文字中文／English。' : '顯示範圍與輸出設定在圖的下方，跟第二頁分開設定。';
+  $('lumType').value = S.lumv.type; $('lumBins').value = String(S.lumv.bins); $('lumBins').disabled = S.lumv.type === 'run';
+  document.querySelectorAll('[data-lumv]').forEach(el => { el.checked = !!S.lumv[el.dataset.lumv]; });
+  const nm = $('imgName3'); if (!nm.dataset.edited) nm.value = lum ? `亮度分布_${today()}` : `CIE1931_量測結果_${today()}`;
+}
+$('chartKind').addEventListener('click', e => { const b = e.target.closest('[data-k]'); if (!b) return; S.chart3 = b.dataset.k; syncChartKind(); save(); schedule(); });
+$('lumType').addEventListener('change', () => { S.lumv.type = $('lumType').value; syncChartKind(); save(); schedule(); });
+$('lumBins').addEventListener('change', () => { S.lumv.bins = $('lumBins').value; save(); schedule(); });
+document.querySelectorAll('[data-lumv]').forEach(el => el.addEventListener('change', () => { S.lumv[el.dataset.lumv] = el.checked; save(); schedule(); }));
+$('imgName3').addEventListener('input', () => { $('imgName3').dataset.edited = $('imgName3').value ? '1' : ''; });
 $('mapArea').addEventListener('change', e => {
   if (e.target.id === 'mapSheet'){ useSheet(e.target.value); return; }
   const el = e.target.closest('[data-map]'); if (!el) return;
@@ -1420,13 +1761,245 @@ $('btnSample').addEventListener('click', () => {
   const s = specValid() ? S.spec : { x0:0.30, x1:0.32, y0:0.31, y1:0.34 };
   const cx = (s.x0+s.x1)/2, cy = (s.y0+s.y1)/2, wx = (s.x1-s.x0)/2, wy = (s.y1-s.y0)/2;
   const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); v = Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); };
-  const lines = ['No.\tx\ty'];
-  for (let i = 1; i <= 24; i++) lines.push(`${i}\t${(cx + gauss()*wx*0.55).toFixed(4)}\t${(cy + gauss()*wy*0.55).toFixed(4)}`);
+  const ls = lsp(), lc = isFinite(ls.lt) ? ls.lt*1.1 : isFinite(ls.l0) ? ls.l0*1.25 : 250;
+  const lines = ['No.\tx\ty\tL'];
+  for (let i = 1; i <= 24; i++) lines.push(`${i}\t${(cx + gauss()*wx*0.55).toFixed(4)}\t${(cy + gauss()*wy*0.55).toFixed(4)}\t${(lc + gauss()*lc*0.08).toFixed(1)}`);
   $('pasteBox').value = lines.join('\n'); $('btnPaste').click();
 });
-$('btnClear').addEventListener('click', () => { D.grid = null; D.wb = null; D.rows = []; D.source = ''; $('pasteBox').value = ''; renderData(); schedule(); });
+$('btnClear').addEventListener('click', () => { D.grid = null; D.wb = null; D.rows = []; D.source = ''; D.fileSpec = null; $('pasteBox').value = ''; renderData(); schedule(); });
 $('btnGoSpec').addEventListener('click', () => switchTab('box'));
 $('xlName').addEventListener('input', () => { $('xlName').dataset.edited = $('xlName').value ? '1' : ''; });
+
+/* =========================================================================
+ * 第二頁：從規格書圖片／表格辨識規格（圖片用 Tesseract.js 在瀏覽器內辨識，不上傳）
+ * ========================================================================= */
+const OCR = { worker:null, thumb:'', res:null, onProg:null };
+async function ensureTesseract(){
+  if (window.Tesseract) return;
+  try{ await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'); }
+  catch(e){ await loadScript('https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js'); }
+  if (!window.Tesseract) throw new Error('文字辨識元件載入失敗（需要網路連線）');
+}
+async function ocrCanvas(blob){
+  const bmp = await createImageBitmap(blob);
+  const sc = Math.max(1, Math.min(3, 2600/bmp.width));
+  const c = document.createElement('canvas'); c.width = Math.round(bmp.width*sc); c.height = Math.round(bmp.height*sc);
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(bmp, 0, 0, c.width, c.height);
+  const d = g.getImageData(0, 0, c.width, c.height), a = d.data;
+  const W = c.width, H = c.height, gray = new Uint8Array(W*H);
+  for (let i = 0, p = 0; i < a.length; i += 4, p++) gray[p] = Math.min(a[i], a[i+1], a[i+2])*0.5 + (0.299*a[i] + 0.587*a[i+1] + 0.114*a[i+2])*0.5;
+  // 去掉表格線（實線、點線）：一整列／一整欄幾乎連續的暗點視為格線，塗白後文字才不會被黏在一起
+  const dark = p => gray[p] < 150, tolH = Math.round(5*sc), tolV = Math.round(2*sc), kill = new Uint8Array(W*H);
+  for (let y = 0; y < H; y++){
+    let last = -1e9, start = 0, best = 0, bs = 0;
+    for (let x = 0; x < W; x++) if (dark(y*W + x)){ if (x - last > tolH) start = x; last = x; if (x - start > best){ best = x - start; bs = start; } }
+    if (best > W*0.3) for (let x = bs; x <= bs + best; x++) kill[y*W + x] = 1;
+  }
+  if (H > 90) for (let x = 0; x < W; x++){
+    let last = -1e9, start = 0, best = 0, bs = 0;
+    for (let y = 0; y < H; y++) if (dark(y*W + x)){ if (y - last > tolV) start = y; last = y; if (y - start > best){ best = y - start; bs = start; } }
+    if (best > H*0.45) for (let y = bs; y <= bs + best; y++) kill[y*W + x] = 1;
+  }
+  for (let i = 0, p = 0; i < a.length; i += 4, p++){ const v = kill[p] ? 255 : gray[p]; a[i] = a[i+1] = a[i+2] = v; }
+  g.putImageData(d, 0, 0);
+  return c;
+}
+async function ocrText(canvas){
+  await ensureTesseract();
+  if (!OCR.worker){
+    OCR.worker = await Tesseract.createWorker('eng', 1, { logger: m => { if (m.status === 'recognizing text' && OCR.onProg) OCR.onProg(m.progress); } });
+    await OCR.worker.setParameters({ tessedit_pageseg_mode:'6', preserve_interword_spaces:'1' });
+  }
+  const { data } = await OCR.worker.recognize(canvas);
+  return data.text || '';
+}
+/* ---- 解析 ---- */
+const SP_COLOR = /\b(white|red|green|blue|yellow|amber|orange|cyan|magenta|purple|pink)\b|(白|紅|红|綠|绿|藍|蓝|黃|黄|橙|琥珀|紫)/i;
+const SP_LUM = /bright|lumin|亮度|輝度|辉度|\bL\s*(?:br|v)\b|\bLbr\b|\bLv\b|\bnits?\b|cd\s*\/\s*m/i;
+const SP_XLAB = /\(\s*[a-z]?x\s*\)|(?:^|[^a-z])x(?:$|[^a-z])/i, SP_YLAB = /\(\s*[a-z]?y\s*\)|(?:^|[^a-z])y(?:$|[^a-z])/i;
+function specClean(s){
+  const dp = (a, b) => Math.max((a.split('.')[1] || '').length, (b.split('.')[1] || '').length);
+  return String(s)
+    .replace(/[|｜¦\[\]{}]/g, ' ')
+    .replace(/[>≥＞]?\s*\d[\d,]*\s*:\s*1\b/g, ' ')                       // 對比 10,000:1
+    .replace(/\b0\s*[,，]\s*(\d{1,4})\b/g, '0.$1')                         // 0,46 → 0.46
+    .replace(/(?<![\w.])[oO]\.(\d)/g, '0.$1')                              // O.46 → 0.46（辨識錯字）
+    .replace(/(?<![\w.])0(\d{2,4})(?![\w.])/g, '0.$1')                    // 050 → 0.50（小數點沒辨識到）
+    .replace(/\(?\s*note\s*\d*\s*\)?/gi, ' ')
+    .replace(/c\.?\s*i\.?\s*e\.?\s*(?:19)?(?:31|76)\b/gi, ' ').replace(/\b19(?:31|64|76)\b/g, ' ')
+    .replace(/cd\s*\/\s*m\s*[2²]?/gi, ' ').replace(/-?\d+(?:\.\d+)?\s*°\s*c\b/gi, ' ').replace(/\d+(?:\.\d+)?\s*(?:ma|v|hz|%)\b/gi, ' ')
+    .replace(/(\d*\.?\d+)\s*(?:±|\+\/-|\+-)\s*(\d*\.?\d+)/g, (q, a, b) => { const n = dp(a, b); return ` ${(+a - +b).toFixed(n)} ${a} ${(+a + +b).toFixed(n)} `; })
+    .replace(/(\d)[-~～－–](\.?\d)/g, '$1 $2').replace(/(\d)\s*[~～]\s*(\.?\d)/g, '$1 $2');
+}
+function specTokens(s){
+  const out = [];
+  for (const m of s.matchAll(/(?<![\w.])(\d*\.\d+|\d+)(?![\w.])|(?<![\w.])[-–—－](?![\w.\d])/g)) out.push(m[1] !== undefined ? +m[1] : null);
+  return out;
+}
+function specAssign(tok, kind, hdr){
+  const t = tok.slice(-3), o = { min:null, typ:null, max:null };
+  let keys;
+  if (hdr && hdr.length === t.length) keys = hdr;
+  else if (t.length === 3) keys = ['min', 'typ', 'max'];
+  else if (t.length === 2) keys = (hdr && !hdr.includes('typ')) || kind === 'xy' ? ['min', 'max'] : ['min', 'typ'];
+  else keys = [kind === 'xy' ? 'typ' : 'min'];
+  keys.forEach((k, i) => { if (t[i] !== null && t[i] !== undefined) o[k] = t[i]; });
+  return o;
+}
+function specParse(lines, grid){
+  const res = { cands:[], L:[], lines };
+  // 1) 欄位式（W_L | W_x | W_y 的下一列是 100 | 0.46-0.54 | 0.45-0.53）
+  if (grid) for (let r = 0; r < grid.length; r++){
+    const row = grid[r].map(c => normH(c)), ix = row.findIndex(isXH), iy = row.findIndex(isYH); if (ix < 0 || iy < 0) continue;
+    const il = row.findIndex(isLH);
+    for (let r2 = r + 1; r2 <= Math.min(r + 2, grid.length - 1); r2++){
+      const rx = rangeOf(grid[r2][ix]), ry = rangeOf(grid[r2][iy]); if (!rx || !ry) continue;
+      res.cands.push({ name:'表格規格列', x:{ min:rx[0], typ:null, max:rx[1] }, y:{ min:ry[0], typ:null, max:ry[1] } });
+      if (il >= 0){ const lr = rangeOf(grid[r2][il]), lv = toNum(grid[r2][il]); if (lr) res.L.push({ name:'表格規格列', min:lr[0], typ:null, max:lr[1] }); else if (isFinite(lv)) res.L.push({ name:'表格規格列', min:lv, typ:null, max:null }); }
+      break;
+    }
+  }
+  // 2) 列式（Min／Typ／Max）
+  let hdr = null, pend = null;
+  const colorNear = (a, b) => {
+    for (const i of [...Array(b - a + 1).keys()].map(k => a + k).concat(a - 1)){ if (i < 0 || i >= lines.length) continue; const m = SP_COLOR.exec(lines[i]); if (m) return m[1] || m[2]; }
+    return '';
+  };
+  lines.forEach((raw, li) => {
+    const s = specClean(raw);
+    if (/\bmin/i.test(raw) && /\bmax/i.test(raw)){
+      const pos = [['min', raw.search(/\bmin/i)], ['typ', raw.search(/\btyp|\bnom/i)], ['max', raw.search(/\bmax/i)]].filter(p => p[1] >= 0).sort((a, b) => a[1] - b[1]);
+      hdr = pos.map(p => p[0]); return;
+    }
+    const tok = specTokens(s);
+    const t01 = tok.filter(v => v === null || (v > 0 && v < 1)), n01 = t01.filter(v => v !== null).length;
+    const xl = SP_XLAB.test(s.replace(/\d*\.\d+/g, ' ')), yl = SP_YLAB.test(s.replace(/\d*\.\d+/g, ' '));
+    if (n01 >= 2 || (n01 >= 1 && (xl || yl))){
+      // 同一列同時有 x 與 y（x 0.46 0.54 y 0.45 0.53）
+      if (xl && yl && n01 >= 4){
+        const cut = s.search(/\(\s*y\s*\)|(?:^|[^a-z])y(?:$|[^a-z])/i), a = specTokens(s.slice(0, cut)).filter(v => v === null || (v > 0 && v < 1)), b = specTokens(s.slice(cut)).filter(v => v === null || (v > 0 && v < 1));
+        res.cands.push({ name:colorNear(li, li) || `第 ${res.cands.length + 1} 組`, x:specAssign(a, 'xy', hdr), y:specAssign(b, 'xy', hdr) }); pend = null; return;
+      }
+      const v = specAssign(t01, 'xy', hdr), lab = yl && !xl ? 'y' : xl && !yl ? 'x' : '';
+      if (lab === 'x' || (!lab && !pend)) pend = { x:v, li };
+      else if (pend){ res.cands.push({ name:colorNear(pend.li, li) || `第 ${res.cands.length + 1} 組`, x:pend.x, y:v }); pend = null; }
+      return;
+    }
+    if (SP_LUM.test(raw)){
+      const tl = tok.filter(v => v === null || v >= 1);
+      if (tl.some(v => v !== null)) res.L.push({ name:colorNear(li, li) || `第 ${res.L.length + 1} 組`, ...specAssign(tl, 'L', hdr) });
+    }
+  });
+  if (pend) res.cands.push({ name:colorNear(pend.li, pend.li) || `第 ${res.cands.length + 1} 組`, x:pend.x, y:{ min:null, typ:null, max:null } });
+  return res;
+}
+/* 表格 → 文字列（一格多行時展開，例如 (x)/(y) 疊在同一格） */
+function cellsToLines(grid){
+  const lines = [];
+  for (const row of grid){ const k = Math.max(1, ...row.map(c => c.length)); for (let i = 0; i < k; i++){ const l = row.map(c => c[i] ?? '').join('\t'); if (l.trim()) lines.push(l); } }
+  return lines;
+}
+function htmlTableGrid(html){
+  const doc = new DOMParser().parseFromString(html, 'text/html'), tb = doc.querySelector('table'); if (!tb) return null;
+  return [...tb.rows].map(tr => [...tr.cells].map(td => {
+    const c = td.cloneNode(true); c.querySelectorAll('br').forEach(b => b.replaceWith('\n')); c.querySelectorAll('p,div,li').forEach(p => p.append('\n'));
+    return c.textContent.replace(/ /g, ' ').split(/\n+/).map(s => s.trim()).filter(Boolean);
+  }));
+}
+function tsvGrid(text){
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++){
+    const ch = text[i];
+    if (q){ if (ch === '"'){ if (text[i+1] === '"'){ cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if (ch === '"' && cell === '') q = true;
+    else if (ch === '\t'){ row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r'){ if (ch === '\r' && text[i+1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += ch;
+  }
+  if (cell !== '' || row.length){ row.push(cell); rows.push(row); }
+  return rows.map(r => r.map(c => c.split(/\n+/).map(s => s.trim()).filter(Boolean)));
+}
+function specFromClip(html, text, src){
+  let grid = html ? htmlTableGrid(html) : null;
+  if (!grid && text && /\t/.test(text)) grid = tsvGrid(text);
+  const lines = grid ? cellsToLines(grid) : String(text || '').split(/\r?\n/).filter(l => l.trim());
+  OCR.thumb = '';
+  showSpecResult(specParse(lines, grid ? grid.map(r => r.map(c => c.join(' '))) : null), src);
+}
+async function ocrFromBlob(blob, src){
+  if (!blob) return;
+  const out = $('ocrOut');
+  OCR.thumb = URL.createObjectURL(blob);
+  out.innerHTML = `<div class="ocr-res"><img class="ocr-thumb" src="${OCR.thumb}" alt=""><div class="hint" id="ocrMsg">準備文字辨識元件…（第一次使用需下載約 10 MB，之後會快很多）</div><div class="prog"><i id="ocrProg"></i></div></div>`;
+  try{
+    const cv = await ocrCanvas(blob);
+    OCR.onProg = p => { const el = $('ocrProg'), m = $('ocrMsg'); if (el) el.style.width = Math.round(p*100) + '%'; if (m) m.textContent = `辨識中… ${Math.round(p*100)}%`; };
+    const text = await ocrText(cv);
+    showSpecResult(specParse(text.split(/\r?\n/).filter(l => l.trim()), null), src);
+  }catch(err){
+    console.error(err);
+    out.innerHTML = `<div class="alert bad">圖片辨識失敗：${esc(err.message || String(err))}。可以改用「貼上表格文字」，或直接在下方手動輸入規格。</div>`;
+  }
+}
+function showSpecResult(res, src){
+  OCR.res = res;
+  const c = res.cands[0] || { x:{}, y:{} }, l = res.L[0] || {};
+  const v = n => Number.isFinite(n) ? String(n) : '';
+  const found = res.cands.length || res.L.length;
+  const sel = res.cands.length > 1 ? `<div class="field"><label for="ocrCand">辨識到 ${res.cands.length} 組色度規格，選擇要套用的一組</label><select class="select" id="ocrCand">${res.cands.map((q, i) => `<option value="${i}">${esc(q.name)}：x ${v(q.x.min)}～${v(q.x.max)}、y ${v(q.y.min)}～${v(q.y.max)}</option>`).join('')}</select></div>` : '';
+  const row = (k, lab, o) => `<div class="k">${lab}</div>` + ['min', 'typ', 'max'].map(f => `<input class="input mono" data-ocr="${k}.${f}" value="${v(o[f])}" inputmode="decimal" aria-label="${lab} ${f}">`).join('');
+  const warn = [];
+  if (res.cands.length && (!Number.isFinite(c.x.min) || !Number.isFinite(c.x.max) || !Number.isFinite(c.y.min) || !Number.isFinite(c.y.max))) warn.push('色度的 Min 或 Max 沒有辨識完整');
+  if (!res.L.length) warn.push('沒有找到亮度（Brightness／Luminance）列');
+  $('ocrOut').innerHTML = `<div class="ocr-res">${OCR.thumb ? `<img class="ocr-thumb" src="${OCR.thumb}" alt="">` : ''}
+    <div class="alert ${found ? 'good' : 'warn'}" style="margin-top:0;">${found ? `已辨識（${esc(src)}）${res.cands[0] && res.cands[0].name && !/^第|^表格/.test(res.cands[0].name) ? `，色名：<b>${esc(res.cands[0].name)}</b>` : ''}。請核對數值，可直接修改後再按「套用到規格」。${warn.length ? `<br>注意：${warn.join('；')}，請手動補上。` : ''}`
+      : '沒有辨識到規格數值。請確認圖片清楚、包含 Min／Typ／Max 欄，或直接在下面手動輸入。'}</div>
+    ${sel}
+    <div class="ocr-grid"><span></span><div class="h">Min（下限）</div><div class="h">Typ</div><div class="h">Max（上限）</div>${row('x', '色度 x', c.x)}${row('y', '色度 y', c.y)}${row('l', '亮度 L', l)}</div>
+    <div class="row"><button class="btn btn-primary btn-sm" id="btnOcrApply" type="button">套用到規格</button><span class="hint">x、y 的 Min／Max → 規格框；亮度 Min → 下限、Typ → 參考線、Max → 上限（空白＝沒有上限）</span></div>
+    <details class="raw"><summary>辨識到的原始文字</summary><pre>${esc(res.lines.join('\n'))}</pre></details></div>`;
+}
+(() => {
+  const dz = $('ocrDz'), input = $('ocrFile'), out = $('ocrOut');
+  dz.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => { const f = input.files[0]; if (f) ocrFromBlob(f, f.name); input.value = ''; });
+  ['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('drag'); }));
+  ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('drag'); }));
+  dz.addEventListener('drop', e => {
+    const f = [...(e.dataTransfer.files || [])].find(x => x.type.startsWith('image/'));
+    if (f) ocrFromBlob(f, f.name);
+    else { const html = e.dataTransfer.getData('text/html'), text = e.dataTransfer.getData('text/plain'); if (html || text) specFromClip(html, text, '拖曳的表格'); }
+  });
+  $('btnOcrText').addEventListener('click', () => { const t = $('ocrText').value; if (!t.trim()){ toast('error', '沒有文字', '請先貼上表格文字'); return; } specFromClip('', t, '貼上的文字'); });
+  out.addEventListener('change', e => {
+    if (e.target.id !== 'ocrCand' || !OCR.res) return;
+    const c = OCR.res.cands[+e.target.value];
+    for (const k of ['x', 'y']) for (const f of ['min', 'typ', 'max']){ const el = out.querySelector(`[data-ocr="${k}.${f}"]`); if (el) el.value = Number.isFinite(c[k][f]) ? String(c[k][f]) : ''; }
+  });
+  out.addEventListener('click', e => {
+    if (e.target.id !== 'btnOcrApply') return;
+    const g = k => { const el = out.querySelector(`[data-ocr="${k}"]`), n = toNum(el ? el.value : ''); return isFinite(n) ? n : null; };
+    const o = { x0:g('x.min'), x1:g('x.max'), y0:g('y.min'), y1:g('y.max'), l0:g('l.min'), lt:g('l.typ'), l1:g('l.max') };
+    if (o.x0 !== null && o.x1 !== null && o.x0 >= o.x1){ toast('error', '無法套用', 'x 的 Min 必須小於 Max'); return; }
+    if (o.y0 !== null && o.y1 !== null && o.y0 >= o.y1){ toast('error', '無法套用', 'y 的 Min 必須小於 Max'); return; }
+    applySpec(o);
+    const parts = [o.x0 !== null && o.x1 !== null ? `x ${o.x0}～${o.x1}` : '', o.y0 !== null && o.y1 !== null ? `y ${o.y0}～${o.y1}` : '', o.l0 !== null ? `亮度 ≥ ${o.l0}` : ''].filter(Boolean);
+    toast('success', '已套用到規格', parts.join('、') || '（沒有可套用的數值）');
+  });
+  // 第二頁任何地方按 Ctrl+V：表格優先，其次圖片，最後純文字
+  document.addEventListener('paste', e => {
+    if (cur !== 'box') return;
+    const cd = e.clipboardData; if (!cd) return;
+    const t = e.target, tag = t && t.closest ? t.closest('input,textarea,select') : null, inOcrText = tag && tag.id === 'ocrText';
+    const html = cd.getData('text/html'), text = cd.getData('text/plain');
+    const imgItem = [...(cd.items || [])].find(it => it.kind === 'file' && it.type.startsWith('image/'));
+    if (html && /<table/i.test(html) && (!tag || inOcrText)){ e.preventDefault(); if (inOcrText) $('ocrText').value = text; specFromClip(html, text, '貼上的表格'); return; }
+    if (imgItem){ e.preventDefault(); ocrFromBlob(imgItem.getAsFile(), '貼上的圖片'); return; }
+    if (tag) return;
+    if (text && text.trim()){ e.preventDefault(); $('ocrText').value = text; specFromClip('', text, '貼上的文字'); }
+  });
+})();
 
 /* ---------------- 輸出 Excel（含圖片） ---------------- */
 function loadScript(src){ return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('無法載入 ' + src)); document.head.appendChild(s); }); }
@@ -1461,7 +2034,7 @@ async function toXlsm(buf, plan){
   let wbx = await rd('xl/workbook.xml');
   wbx = /<workbookPr\b/.test(wbx) ? wbx.replace(/<workbookPr\b/, '<workbookPr codeName="ThisWorkbook"') : wbx.replace('<sheets>', '<workbookPr codeName="ThisWorkbook"/><sheets>');
   zip.file('xl/workbook.xml', wbx);
-  for (let i = 1; zip.file(`xl/worksheets/sheet${i}.xml`); i++){
+  for (let i = 1; i <= 3 && zip.file(`xl/worksheets/sheet${i}.xml`); i++){   // 巨集專案只有 Sheet1～3 的模組
     let sx = await rd(`xl/worksheets/sheet${i}.xml`);
     if (/<sheetPr\b/.test(sx)) sx = sx.replace(/<sheetPr\b/, `<sheetPr codeName="Sheet${i}"`);
     else sx = sx.replace(/(<worksheet\b[^>]*>)/, `$1<sheetPr codeName="Sheet${i}"/>`);
@@ -1526,6 +2099,64 @@ function fitColumns(ws, cols, skipRows = new Set()){
 function applyFont(wb){
   wb.eachSheet(sh => sh.eachRow({ includeEmpty:false }, row => row.eachCell({ includeEmpty:true }, c => { c.font = { ...(c.font || {}), name:'Microsoft JhengHei' }; })));
 }
+/* 亮度量測工作表：規格、統計（公式）、判定、亮度分布圖與推移圖 */
+function addLumSheet(wb){
+  const vals = lumVals(); if (!vals.length) return;
+  const sp = lspJ(), lo = sp.l0, hi = sp.l1, ty = lsp().lt, has = isFinite(lo) || isFinite(hi), st = lumStats(vals.map(v => v.l), sp);
+  const ws = wb.addWorksheet('亮度量測', { views:[{ showGridLines:false }] });
+  const thin = { style:'thin', color:{ argb:'FFB9AE98' } }, box = { top:thin, left:thin, bottom:thin, right:thin };
+  const hdrFill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFE7DAC1' } }, secFill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFA1512C' } };
+  const badFont = { color:{ argb:'FFFF0000' }, bold:true }, badFill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFFDE2E1' } };
+  const FL = '0.0', put = (ref, v, o = {}) => { const c = ws.getCell(ref); c.value = v; if (o.fmt) c.numFmt = o.fmt; c.border = box; c.alignment = { vertical:'middle', horizontal:o.h || 'center' }; if (o.fill) c.fill = o.fill; if (o.font) c.font = o.font; return c; };
+  const section = (r, text) => { ws.mergeCells(`A${r}:D${r}`); const c = ws.getCell(`A${r}`); c.value = text; c.font = { bold:true, color:{ argb:'FFFFFFFF' }, size:12 }; c.fill = secFill; c.alignment = { vertical:'middle', indent:1 }; ws.getRow(r).height = 22; };
+  ws.mergeCells('A1:D1'); ws.getCell('A1').value = '亮度量測報告'; ws.getCell('A1').font = { bold:true, size:16 }; ws.getRow(1).height = 28;
+  ws.mergeCells('A2:D2'); ws.getCell('A2').value = `產出時間：${new Date().toLocaleString('zh-TW', { hour12:false })}　資料來源：${D.source || ''}`; ws.getCell('A2').font = { size:10, color:{ argb:'FF6C5D47' } };
+  section(4, '亮度規格（cd/m²）');
+  ['項目', '下限', 'Typ', '上限'].forEach((t, i) => put(`${'ABCD'[i]}5`, t, { fill:hdrFill, font:{ bold:true } }));
+  put('A6', '亮度 L', { font:{ bold:true } }); put('B6', isFinite(lo) ? lo : null); put('C6', isFinite(ty) ? ty : null); put('D6', isFinite(hi) ? hi : '（無上限）');
+  const r0 = 20, r1 = r0 + vals.length - 1, R = `C${r0}:C${r1}`;
+  section(8, '統計');
+  const statRows = [
+    ['筆數', `COUNT(${R})`, st.n, '0'],
+    ['平均', `AVERAGE(${R})`, st.avg, FL],
+    ['最大', `MAX(${R})`, st.max, FL],
+    ['最小', `MIN(${R})`, st.min, FL],
+    ['標準差', `IF(COUNT(${R})>1,STDEV(${R}),"")`, isFinite(st.sd) ? st.sd : '', '0.00']
+  ];
+  if (has){
+    const cpkF = isFinite(lo) && isFinite(hi) ? 'MIN((B10-B6)/(3*B13),(D6-B10)/(3*B13))' : isFinite(lo) ? '(B10-B6)/(3*B13)' : '(D6-B10)/(3*B13)';
+    statRows.push([st.cpkName, `IF(OR(B13="",B13=0),"",${cpkF})`, isFinite(st.cpk) ? st.cpk : '', '0.00', isFinite(st.cpk) && st.cpk < 1.33]);
+    statRows.push(['不合格筆數', `COUNTIF(D${r0}:D${r1},"NG")`, st.bad, '0', st.bad > 0]);
+    statRows.push(['合格率', 'IF(B9=0,"",1-B15/B9)', 1 - st.bad/st.n, '0.0%', st.bad > 0]);
+  }
+  statRows.forEach(([lab, f, v, fmt, bad], i) => {
+    const r = 9 + i; put(`A${r}`, lab, { font:{ bold:true } }); ws.mergeCells(`B${r}:C${r}`);
+    put(`B${r}`, { formula:f, result:v }, { fmt, font: bad ? badFont : undefined, fill: bad ? badFill : undefined });
+  });
+  section(18, '量測數值');
+  ['No.', '樣品編號', '亮度 (cd/m²)', '判定'].forEach((t, i) => put(`${'ABCD'[i]}19`, t, { fill:hdrFill, font:{ bold:true } }));
+  const cond = r => [isFinite(lo) ? `C${r}<$B$6` : '', isFinite(hi) ? `C${r}>$D$6` : ''].filter(Boolean).join(',');
+  vals.forEach((v, k) => {
+    const r = r0 + k, d = D.rows[v.i - 1];
+    put(`A${r}`, v.i);
+    if (d.idv instanceof DateCell){ const dt = d.idv.toUTCDate(); put(`B${r}`, dt || d.idv.serial, { fmt:d.idv.excelFmt }); }
+    else put(`B${r}`, d.id === '' ? null : (isFinite(+d.id) ? +d.id : d.id));
+    put(`C${r}`, v.l, { font: v.bad ? badFont : undefined, fill: v.bad ? badFill : undefined });
+    if (has) put(`D${r}`, { formula:`IF(OR(${cond(r)}),"NG","OK")`, result: v.bad ? 'NG' : 'OK' }, { font: v.bad ? badFont : { bold:true, color:{ argb:'FF2E7D32' } } });
+    else put(`D${r}`, '—');
+  });
+  if (has) ws.addConditionalFormatting({ ref:R, rules:[{ type:'expression', priority:1, formulae:[`OR(${cond(r0)})`], style:{ font:{ color:{ argb:'FFFF0000' }, bold:true }, fill:{ type:'pattern', pattern:'solid', bgColor:{ argb:'FFFDE2E1' } } } }] });
+  fitColumns(ws, [1, 2, 3, 4], new Set([1, 2])); ws.getColumn(5).width = 3;
+  // 圖：直方圖、推移圖（依目前的圖面語言與勾選項目）
+  let top = 2.3;
+  for (const type of ['hist', 'run']){
+    const o = { ...optsLum(), type }, lay = layoutLum(1600, o.stat), c = document.createElement('canvas');
+    c.width = lay.W; c.height = lay.H; renderLum(new CanvasPainter(c.getContext('2d')), lay, o);
+    const iw = 640, ih = Math.round(iw*lay.H/lay.W);
+    ws.addImage(wb.addImage({ base64:c.toDataURL('image/png'), extension:'png' }), { tl:{ col:5, row:top }, ext:{ width:iw, height:ih } });
+    top += ih/20 + 1.2;
+  }
+}
 async function buildExcel(){
   await ensureExcelJS();
   const st = stats(), ok = specValid(), sp = S.spec, n = D.rows.length;
@@ -1564,8 +2195,8 @@ async function buildExcel(){
     put(`C${r}`, { formula:fy, result:vy }, { fmt:F4, font: isAvg && st.aby ? badFont : undefined, fill: isAvg && st.aby ? badFill : undefined });
   });
   put('A15', '筆數', { font:{ bold:true } }); ws.mergeCells('B15:C15'); put('B15', { formula:`COUNT(${X})`, result:n });
-  put('A16', '超規筆數', { font:{ bold:true } }); ws.mergeCells('B16:C16'); put('B16', ok ? { formula:`COUNTIF(G${r0}:G${r1},"NG")`, result:st.bad } : '未設定規格', { font: st.bad ? badFont : undefined });
-  put('A17', '合格率', { font:{ bold:true } }); ws.mergeCells('B17:C17'); put('B17', ok ? { formula:'IF(B15=0,"",1-B16/B15)', result:1 - st.bad/n } : '', { fmt:'0.0%' });
+  put('A16', '超規筆數', { font:{ bold:true } }); ws.mergeCells('B16:C16'); put('B16', ok ? { formula:`COUNTIF(G${r0}:G${r1},"NG")`, result:st.badC } : '未設定規格', { font: st.badC ? badFont : undefined });
+  put('A17', '合格率', { font:{ bold:true } }); ws.mergeCells('B17:C17'); put('B17', ok ? { formula:'IF(B15=0,"",1-B16/B15)', result:1 - st.badC/n } : '', { fmt:'0.0%' });
   if (ok){
     ws.addConditionalFormatting({ ref:'B11', rules:[{ type:'expression', priority:1, formulae:['OR(B11<$B$6,B11>$C$6)'], style:{ font:{ color:{ argb:'FFFF0000' }, bold:true }, fill:{ type:'pattern', pattern:'solid', bgColor:{ argb:'FFFDE2E1' } } } }] });
     ws.addConditionalFormatting({ ref:'C11', rules:[{ type:'expression', priority:2, formulae:['OR(C11<$B$7,C11>$C$7)'], style:{ font:{ color:{ argb:'FFFF0000' }, bold:true }, fill:{ type:'pattern', pattern:'solid', bgColor:{ argb:'FFFDE2E1' } } } }] });
@@ -1613,6 +2244,7 @@ async function buildExcel(){
       ws2.getCell('A1').value = 'CIE 1931 xy 色度圖（全圖）'; ws2.getCell('A1').font = { bold:true, size:13 };
       ws2.addImage(wb.addImage({ base64:cv2.toDataURL('image/png'), extension:'png' }), { tl:{ col:0, row:1.4 }, ext:{ width:760, height:Math.round(760*lay2.H/lay2.W) } });
     }
+    addLumSheet(wb);
     applyFont(wb);
     const buf = await wb.xlsx.writeBuffer();
     return new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -1740,6 +2372,7 @@ async function buildExcel(){
   G.forEach(([k, v], i) => { ps.getCell(i + 1, 12).value = k; ps.getCell(i + 1, 13).value = v; });
   ps.getCell(VIEWS.length + 4, 1).value = '此工作表由 CIE 色度圖工具產生，供巨集使用，請勿修改。';
 
+  addLumSheet(wb);   // 放在最後，不影響巨集使用的工作表順序
   applyFont(wb);
   const buf = await wb.xlsx.writeBuffer();
   return new Blob([await toXlsm(buf, plan)], { type:'application/vnd.ms-excel.sheet.macroEnabled.12' });
@@ -1755,6 +2388,7 @@ $('btnXl').addEventListener('click', () => withBusy($('btnXl'), async () => {
  * ========================================================================= */
 $('ptX').value = S.pt.x.toFixed(4); $('ptY').value = S.pt.y.toFixed(4);
 for (const [id, k] of Object.entries(SPEC_IDS)) $(id).value = isFinite(S.spec[k]) ? S.spec[k].toFixed(4) : '';
+for (const [id, k] of Object.entries(LSPEC_IDS)) $(id).value = Number.isFinite(S.lspec[k]) ? String(S.lspec[k]) : '';
 $('rcColor').value = S.rect.color; $('rcColorTxt').textContent = S.rect.color.toUpperCase(); $('rcLw').value = String(S.rect.lw);
 VIEWCTL.forEach(syncView); syncToggles(); imgHint();
 $('showBox2').checked = S.boxShow2 !== false; $('showBox3').checked = S.mark.box !== false;
@@ -1768,7 +2402,7 @@ $('showMax').checked = S.mark.max !== false; $('showMin').checked = S.mark.min !
 $('showMax').addEventListener('change', () => { S.mark.max = $('showMax').checked; save(); schedule(); });
 $('showMin').addEventListener('change', () => { S.mark.min = $('showMin').checked; save(); schedule(); });
 $('xlMacro').addEventListener('change', () => { S.xlMacro = $('xlMacro').checked; $('xlMacroHint').style.display = S.xlMacro ? '' : 'none'; save(); });
-updatePt(); readSpec(); renderData();
+updatePt(); readSpec(); renderData(); syncChartKind();
 const fontsReady = document.fonts ? Promise.all([document.fonts.load('400 16px "Noto Sans TC"'), document.fonts.load('700 16px "JetBrains Mono"')]).catch(() => {}) : Promise.resolve();
 fontsReady.then(() => { fillCache.clear(); schedule(); });
 schedule();
@@ -1941,6 +2575,7 @@ document.querySelectorAll('#infoMode [data-m]').forEach(b => b.addEventListener(
 setInfoMode(S.infoMode === 'pick' ? 'pick' : 'xy');
 bindPick(document, window, $('pickHere'));
 refreshPickViews();
+
 
 /* ---------- 安裝成應用程式（PWA） ---------- */
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
