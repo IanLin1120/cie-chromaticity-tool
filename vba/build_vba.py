@@ -272,20 +272,27 @@ def doc_module(name):
         'Attribute VB_GlobalNameSpace = False', 'Attribute VB_Creatable = False', 'Attribute VB_PredeclaredId = True',
         'Attribute VB_Exposed = True', 'Attribute VB_TemplateDerived = False', 'Attribute VB_Customizable = True']) + '\r\n'
 
-def build(module_src_path, sheets=3, sheet1_code=None):
-    src = open(module_src_path, encoding='utf-8').read()
+def std_source(path):
+    src = open(path, encoding='utf-8').read()
     src = re.sub(r'\{\{(.*?)\}\}', lambda m: chrw_expr(m.group(1)), src)
-    assert all(ord(c) < 128 for c in src), 'module source must be ASCII after ChrW conversion'
-    src = src.replace('\r\n', '\n').replace('\n', '\r\n')
-    modules = [('ThisWorkbook', 'doc', doc_module('ThisWorkbook'))]
+    assert all(ord(c) < 128 for c in src), f'{path}: module source must be ASCII after ChrW conversion'
+    return src.replace('\r\n', '\n').replace('\n', '\r\n')
+
+def doc_code(path):
+    if not path: return ''
+    code = open(path, encoding='utf-8').read().replace('\r\n', '\n').replace('\n', '\r\n')
+    assert all(ord(c) < 128 for c in code), f'{path}: must be ASCII'
+    return code
+
+def build(module_src_path, sheets=3, sheet1_code=None, more_std=(), workbook_code=None):
+    src = std_source(module_src_path)
+    modules = [('ThisWorkbook', 'doc', doc_module('ThisWorkbook') + doc_code(workbook_code))]
     def extra(i):
-        if i == 1 and sheet1_code:
-            code = open(sheet1_code, encoding='utf-8').read().replace('\r\n', '\n').replace('\n', '\r\n')
-            assert all(ord(c) < 128 for c in code)
-            return code
-        return ''
+        return doc_code(sheet1_code) if i == 1 else ''
     modules += [(f'Sheet{i}', 'doc', doc_module(f'Sheet{i}') + extra(i)) for i in range(1, sheets + 1)]
     modules += [('Module1', 'std', src)]
+    for i, path in enumerate(more_std, start=2):          # Module2, Module3 ... (Attribute VB_Name must match)
+        modules += [(f'Module{i}', 'std', std_source(path))]
     vba = {'_VBA_PROJECT': b'\xCC\x61\xFF\xFF\x00\x00\x00', 'dir': ovba_compress(dir_stream(modules))}
     for name, kind, text in modules:
         vba[name] = ovba_compress(text.encode('cp1252'))
@@ -293,6 +300,13 @@ def build(module_src_path, sheets=3, sheet1_code=None):
     return cfb(tree)
 
 if __name__ == '__main__':
-    out = sys.argv[2] if len(sys.argv) > 2 else 'vbaProject.bin'
-    data = build(sys.argv[1], sheet1_code=sys.argv[3] if len(sys.argv) > 3 else None)
+    # build_vba.py Module1.bas vbaProject.bin [Sheet1_events.bas] [--module Module2.bas ...] [--workbook ThisWorkbook_events.bas]
+    args, more, wbc = [], [], None
+    it = iter(sys.argv[1:])
+    for a in it:
+        if a == '--module': more.append(next(it))
+        elif a == '--workbook': wbc = next(it)
+        else: args.append(a)
+    out = args[1] if len(args) > 1 else 'vbaProject.bin'
+    data = build(args[0], sheet1_code=args[2] if len(args) > 2 else None, more_std=more, workbook_code=wbc)
     open(out, 'wb').write(data); print(out, len(data), 'bytes')
